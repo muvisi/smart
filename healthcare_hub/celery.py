@@ -57,7 +57,7 @@ app.conf.beat_schedule = {
         "schedule": timedelta(minutes=2),
     },
      'sync-copays-every-5-minutes': {
-        'task': 'engine.tasks.sync_hais_copays_job',  
+        'task': 'jobs.tasks.sync_hais_copays_job',  
         'schedule': timedelta(minutes=5), 
     },
     
