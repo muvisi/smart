@@ -52,10 +52,10 @@ app.conf.beat_schedule = {
     "task": "jobs.tasks.sync_provider_restrictions_job",
     "schedule": timedelta(minutes=2),
 },
-    "sync_waiting_periods_every_2_min": {
-        "task": "jobs.tasks.sync_waiting_periods_job",
-        "schedule": timedelta(minutes=2),
-    },
+    # "sync_waiting_periods_every_2_min": {
+    #     "task": "jobs.tasks.sync_waiting_periods_job",
+    #     "schedule": timedelta(minutes=2),
+    # },
      'sync-copays-every-5-minutes': {
         'task': 'jobs.tasks.sync_hais_copays_job',  
         'schedule': timedelta(minutes=5), 

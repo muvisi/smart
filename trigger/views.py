@@ -45,8 +45,7 @@ class TriggerSectionAPIView(APIView):
                     # =========================================================
                     if section.lower() in [
                         "members",
-                        "benefits",
-                        "categories",
+                       
                         "copays",
                         "waiting periods",
                         "restrictions",
@@ -131,6 +130,9 @@ class TriggerSectionAPIView(APIView):
                     # =========================================================
                     elif section.lower() in [
                         "corporate",
+                        "benefits",
+                         "copays",
+                        "categories",
                         "corp_groups",
                         "corp_anniversary",
                     ]:
