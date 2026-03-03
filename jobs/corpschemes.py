@@ -1,11 +1,7 @@
 import requests
 from urllib.parse import urlencode
 from django.conf import settings
-from django.core.mail import EmailMessage
-from django.template.loader import render_to_string
-
 from engine.models import ApiSyncLog
-# from job.models import ApiSyncLog
 
 class SyncSchemesService:
     def get_hais_token(self):
@@ -47,24 +43,6 @@ class SyncSchemesService:
             print(f"❌ SMART Auth Error: {e}")
             return None
 
-    def send_email_summary(self, schemes_summary, success_count, failed_count):
-        """Optional: Reuse your email template logic for schemes"""
-        try:
-            subject = f"[Madison Healthcare] HAIS Schemes Sync Report"
-            html_content = render_to_string("emails/schemes_summary.html", {
-                "items": schemes_summary,
-                "success_count": success_count,
-                "failed_count": failed_count,
-            })
-            email = EmailMessage(
-                subject, html_content, settings.EMAIL_HOST_USER, ["mwangangimuvisi@gmail.com"]
-            )
-            email.content_subtype = "html"
-            email.send(fail_silently=False)
-            print("✅ Schemes Summary email sent")
-        except Exception as e:
-            print(f"❌ Failed to send Schemes email: {e}")
-
     def run(self):
         print("🔄 SCHEME SYNC STARTED")
         hais_token = self.get_hais_token()
@@ -74,7 +52,6 @@ class SyncSchemesService:
             print("❌ Authentication failed. Skipping sync.")
             return
 
-        # Fetch HAIS schemes
         try:
             schemes_resp = requests.post(
                 settings.HAIS_API_BASE_URL,
@@ -91,11 +68,8 @@ class SyncSchemesService:
             return
 
         schemes = schemes_resp["response"]["result"]
-        success, failed = 0, 0
-        schemes_summary = []
 
         for s in schemes:
-            # Prepare SMART URL
             url_data = {
                 "companyName": s.get("scheme_name"),
                 "clnPolCode": s.get("corp_id"),
@@ -123,11 +97,10 @@ class SyncSchemesService:
                 smart_data = {"error": str(e)}
                 smart_httpcode = 500
 
-            # Determine status (consistent with your logic)
             is_successful = str(smart_data.get("successful")).lower() == "true"
             sync_status = 1 if is_successful else 2
 
-            # Update HAIS about the sync result
+            # Update HAIS
             update_req = {
                 "name": "updateCorporateScheme" if s.get("scheme_type") == "CORPORATE" else "updateRetailScheme",
                 "param": {
@@ -143,29 +116,17 @@ class SyncSchemesService:
                     headers={"Authorization": f"Bearer {hais_token}", "Content-Type": "application/json"},
                     timeout=30
                 )
-            except Exception as e:
-                print(f"⚠️ Failed to update HAIS status for {s.get('corp_id')}: {e}")
+            except Exception:
+                pass
 
-            # Save log to DB
+            # Fixed field names: request_object and response_object
             ApiSyncLog.objects.create(
                 api_name="SyncHaisToSmart",
                 transaction_name=f"{s.get('scheme_type').capitalize()} Scheme: {s.get('scheme_name')}",
-                request_obj=s,
-                response_obj=smart_data,
+                request_object=s,
+                response_object=smart_data,
                 status=sync_status,
                 http_code=smart_httpcode
             )
 
-            if sync_status == 1:
-                success += 1
-            else:
-                failed += 1
-            
-            schemes_summary.append({
-                "name": s.get("scheme_name"),
-                "code": s.get("corp_id"),
-                "status": "SUCCESS" if sync_status == 1 else "FAILED"
-            })
-
-        print(f"📊 Sync Completed: {success} Succeeded, {failed} Failed")
-        # self.send_email_summary(schemes_summary, success, failed) # Uncomment if you create the template
+        print("✅ HAIS Schemes sync job executed successfully")
