@@ -273,7 +273,6 @@ class SyncHaisMembersService:
 
 #         self.send_email_summary(members_summary, success, failed)
 
-
 import requests
 from urllib.parse import urlencode
 from django.conf import settings
@@ -281,7 +280,13 @@ from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from engine.models import MemberSyncSuccess, MemberSyncFailure
 
+
 class SyncRetailMembersService:
+
+    # =============================
+    # AUTH METHODS
+    # =============================
+
     def get_hais_token(self):
         payload = {
             "name": "generateToken",
@@ -290,6 +295,7 @@ class SyncRetailMembersService:
                 "consumer_secret": settings.HAIS_API_CONSUMER_SECRET
             }
         }
+
         try:
             resp = requests.post(
                 settings.HAIS_API_BASE_URL,
@@ -298,10 +304,13 @@ class SyncRetailMembersService:
                 timeout=30
             )
             data = resp.json()
+
             if data.get("response", {}).get("status") == 200:
                 return data["response"]["result"]["accessToken"]
+
         except Exception as e:
             print(f"❌ HAIS Auth Error: {e}")
+
         return None
 
     def get_smart_token(self):
@@ -310,6 +319,7 @@ class SyncRetailMembersService:
             "client_secret": settings.SMART_CLIENT_SECRET,
             "grant_type": settings.SMART_GRANT_TYPE
         }
+
         try:
             resp = requests.post(
                 f"{settings.SMART_ACCESS_TOKEN}{urlencode(payload)}",
@@ -317,14 +327,21 @@ class SyncRetailMembersService:
                 verify=False,
                 timeout=30
             )
+
             return resp.json().get("access_token")
+
         except Exception as e:
             print(f"❌ SMART Auth Error: {e}")
-            return None
+
+        return None
+
+    # =============================
+    # FETCH MEMBERS
+    # =============================
 
     def get_hais_members(self, hais_token):
-        # Using the retail members endpoint name
         payload = {"name": "smartRetailMembers", "param": {}}
+
         try:
             resp = requests.post(
                 settings.HAIS_API_BASE_URL,
@@ -335,61 +352,98 @@ class SyncRetailMembersService:
                 },
                 timeout=60
             )
+
             return resp.json()
+
         except Exception as e:
             return {"error": str(e)}
 
+    # =============================
+    # EMAIL SUMMARY
+    # =============================
+
     def send_email_summary(self, members_summary, success_count, failed_count):
+        total = success_count + failed_count
+
+        sync_quality = round(
+            (success_count / total) * 100, 2
+        ) if total > 0 else 0
+
         try:
-            subject = f"[Madison Healthcare] HAIS Retail Members Sync Report"
-            html_content = render_to_string("emails/members_summary.html", {
-                "members": members_summary,
-                "success_count": success_count,
-                "failed_count": failed_count,
-            })
-            email = EmailMessage(
-                subject, html_content, settings.EMAIL_HOST_USER, ["mwangangimuvisi@gmail.com"]
+            subject = "[Madison Healthcare] HAIS Retail Members Sync Report"
+
+            html_content = render_to_string(
+                "emails/members_summary.html",
+                {
+                    "members": members_summary,
+                    "success_count": success_count,
+                    "failed_count": failed_count,
+                    "sync_quality": sync_quality,
+                }
             )
+
+            email = EmailMessage(
+                subject,
+                html_content,
+                settings.EMAIL_HOST_USER,
+                ["mwangangimuvisi@gmail.com"],
+            )
+
             email.content_subtype = "html"
             email.send(fail_silently=False)
-            print("✅ Retail Summary email sent")
+
+            print("✅ Retail Summary email sent successfully")
+
         except Exception as e:
             print(f"❌ Failed to send Retail email: {e}")
 
+    # =============================
+    # MAIN RUN METHOD
+    # =============================
+
     def run(self):
         print("🔄 RETAIL SYNC STARTED")
+
         hais_token = self.get_hais_token()
         smart_token = self.get_smart_token()
-        
-        if not hais_token or not smart_token: 
-            print("❌ Authentication failed. Check API credentials.")
+
+        if not hais_token or not smart_token:
+            print("❌ Authentication failed.")
             return
 
         members_resp = self.get_hais_members(hais_token)
+
         if members_resp.get("response", {}).get("status") != 200:
             print("❌ Failed to fetch retail members")
             return
 
         members = members_resp["response"]["result"]
-        success, failed = 0, 0
+
+        success = 0
+        failed = 0
         members_summary = []
 
         for m in members:
             try:
-                # Parsing logic consistent with your Corporate service
-                member_names = m.get("member_name", "").split(" ")
+                # -------------------------
+                # Parse names safely
+                # -------------------------
+                member_names = m.get("member_name", "").split()
                 surname = member_names[0] if len(member_names) > 0 else ""
                 second_name = member_names[1] if len(member_names) > 1 else ""
                 third_name = member_names[2] if len(member_names) > 2 else ""
-                
+
                 anniv = m.get("anniv")
                 family_code = m.get("family_no")
                 membership_number = m.get("member_no")
-                
-                # Phone formatting
+
+                # Format phone
                 phone = m.get("mobile_no", "").replace(" ", "")
                 mobile_phone = f"254{phone[-9:]}" if phone else ""
-                
+
+                # -------------------------
+                # SMART PAYLOAD
+                # -------------------------
                 payload = {
                     "familyCode": family_code,
                     "membershipNumber": membership_number,
@@ -414,36 +468,67 @@ class SyncRetailMembersService:
                 }
 
                 smart_url = f"{settings.SMART_API_BASE_URL}members?{urlencode(payload)}"
-                smart_resp = requests.post(smart_url, headers={"Authorization": f"Bearer {smart_token}"}, verify=False)
+
+                smart_resp = requests.post(
+                    smart_url,
+                    headers={"Authorization": f"Bearer {smart_token}"},
+                    verify=False,
+                    timeout=60
+                )
+
                 smart_data = smart_resp.json()
-                
-                is_successful = smart_data.get("successful")
-                
+                smart_httpcode = smart_resp.status_code
+
+                is_successful = bool(smart_data.get("successful"))
+
+                # -------------------------
+                # EMAIL SUMMARY DATA
+                # -------------------------
                 summary = {
                     "member_no": membership_number,
                     "family_no": family_code,
                     "surname": surname,
                     "second_name": second_name,
                     "third_name": third_name,
-                    "other_names": "",
                     "category": m.get("memType"),
                     "anniv": anniv,
                     "corp_id": m.get("scheme_id"),
-                    "smart_status": smart_resp.status_code,
+                    "smart_status": smart_httpcode,
                     "smart_successful": is_successful,
-                    "smart_response": smart_data
                 }
+
                 members_summary.append(summary)
+
+                # -------------------------
+                # DATABASE SAVE (ONLY MODEL FIELDS)
+                # -------------------------
+                db_data = {
+                    "member_no": membership_number,
+                    "family_no": family_code,
+                    "surname": surname,
+                    "second_name": second_name,
+                    "third_name": third_name,
+                    "category": m.get("memType"),
+                    "anniv": anniv,
+                    "corp_id": m.get("scheme_id"),
+                    "smart_status": smart_httpcode,
+                    "smart_response": smart_data,
+                }
 
                 if is_successful:
                     success += 1
-                    MemberSyncSuccess.objects.create(**summary)
+                    MemberSyncSuccess.objects.create(**db_data)
                 else:
                     failed += 1
-                    MemberSyncFailure.objects.create(**summary)
+                    MemberSyncFailure.objects.create(**db_data)
 
             except Exception as e:
                 failed += 1
-                print(f"❌ Error retail member {m.get('member_no')}: {e}")
+                print(f"❌ Error processing retail member {m.get('member_no')}: {e}")
 
+        # -------------------------
+        # SEND EMAIL
+        # -------------------------
         self.send_email_summary(members_summary, success, failed)
+
+        print("✅ HAIS Retail Members sync job executed successfully")
