@@ -5,48 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HAIS Members Sync Report</title>
     <style>
-        /* Modern Reset */
         body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
         .wrapper { padding: 40px 15px; }
-        .container { max-width: 900px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
-        
-        /* Brand Header */
+        .container { max-width: 900px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
         .header { background: linear-gradient(135deg, #0056b3 0%, #003d7a 100%); padding: 32px; text-align: center; color: #ffffff; }
         .header h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase; }
         .header p { margin: 8px 0 0; opacity: 0.9; font-size: 14px; font-weight: 500; }
-
-        /* Summary Stats Section */
         .stats-container { display: flex; padding: 24px; gap: 16px; background-color: #f1f5f9; border-bottom: 1px solid #e2e8f0; }
         .stat-card { flex: 1; background: #ffffff; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0; text-align: center; }
         .stat-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px; }
         .stat-value { font-size: 24px; font-weight: 800; }
         .stat-value.success { color: #10b981; }
-        .stat-value.failed { color: #ef4444; }
-
-        /* Table Design */
         .table-responsive { width: 100%; overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; min-width: 600px; }
         th { background-color: #f8fafc; color: #475569; font-size: 12px; font-weight: 700; text-transform: uppercase; padding: 16px; border-bottom: 2px solid #e2e8f0; text-align: left; }
         td { padding: 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; }
-        tr:hover { background-color: #f8fafc; }
-
-        /* Badges */
         .badge { padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; }
         .badge-success { background-color: #d1fae5; color: #065f46; }
-        .badge-failed { background-color: #fee2e2; color: #991b1b; }
-        
         .member-name { font-weight: 600; color: #1e293b; display: block; }
         .member-subtext { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-
         .footer { padding: 32px; text-align: center; background-color: #ffffff; border-top: 1px solid #f1f5f9; }
         .footer-text { font-size: 12px; color: #94a3b8; line-height: 1.5; }
-        
-        /* Mobile adjustments */
-        @media (max-width: 600px) {
-            .stats-container { flex-direction: column; }
-            .header { padding: 24px 16px; }
-            td, th { padding: 12px; }
-        }
+        @media (max-width: 600px) { .stats-container { flex-direction: column; } }
     </style>
 </head>
 <body>
@@ -63,15 +43,11 @@
                 <span class="stat-value success">{{ success_count }}</span>
             </div>
             <div class="stat-card">
-                <span class="stat-label">Total Failed</span>
-                <span class="stat-value failed">{{ failed_count }}</span>
-            </div>
-            <div class="stat-card">
                 <span class="stat-label">Sync Quality</span>
                 <span class="stat-value" style="color: #3b82f6;">
-                    {% if success_count or failed_count %}
-                        {{ success_count|add:failed_count|default:1|divisibleby:success_count }}%
-                    {% else %}0%{% endif %}
+                    {% with total=success_count|add:failed_count %}
+                        {% if total > 0 %}{% widthratio success_count total 100 %}{% else %}0{% endif %}%
+                    {% endwith %}
                 </span>
             </div>
         </div>
@@ -88,26 +64,24 @@
                 </thead>
                 <tbody>
                     {% for member in members %}
-                    <tr>
-                        <td>
-                            <span class="member-name">{{ member.surname }} {{ member.second_name }} {{ member.third_name }}</span>
-                            <span class="member-subtext">No: {{ member.member_no }}</span>
-                        </td>
-                        <td>
-                            <div style="font-weight: 500;">Fam: {{ member.family_no }}</div>
-                            <div class="member-subtext">Anniv: {{ member.anniv }}</div>
-                        </td>
-                        <td>
-                            <span style="font-weight: 500; color: #64748b;">{{ member.category }}</span>
-                        </td>
-                        <td>
-                            {% if member.smart_successful %}
+                        {% if member.smart_successful %}
+                        <tr>
+                            <td>
+                                <span class="member-name">{{ member.surname }} {{ member.second_name }} {{ member.third_name }}</span>
+                                <span class="member-subtext">No: {{ member.member_no }}</span>
+                            </td>
+                            <td>
+                                <div style="font-weight: 500;">Fam: {{ member.family_no }}</div>
+                                <div class="member-subtext">Anniv: {{ member.anniv }}</div>
+                            </td>
+                            <td>
+                                <span style="font-weight: 500; color: #64748b;">{{ member.category }}</span>
+                            </td>
+                            <td>
                                 <span class="badge badge-success">● SUCCESS</span>
-                            {% else %}
-                                <span class="badge badge-failed">● FAILED</span>
-                            {% endif %}
-                        </td>
-                    </tr>
+                            </td>
+                        </tr>
+                        {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
