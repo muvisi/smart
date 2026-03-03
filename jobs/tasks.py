@@ -3,6 +3,7 @@ from celery import shared_task
 from jobs.benefits import SyncHaisBenefitsService, SyncHaisRetailBenefitsService
 from jobs.categories import SyncHaisCategoriesService, SyncRetailCategoriesService
 from jobs.copays import SyncHaisCopaysService
+from jobs.corpschemes import SyncSchemesService
 from jobs.members import SyncHaisMembersService, SyncRetailMembersService
 from jobs.restrictions import SyncProviderRestrictionsService
 from jobs.waiting_periods import SyncHaisRetailWaitingPeriodsService
@@ -68,4 +69,10 @@ def sync_waiting_periods_job():
 @shared_task
 def sync_hais_copays_job():
     service = SyncHaisCopaysService()
+    service.run()
+    
+@shared_task
+def sync_schemes_job():
+   
+    service = SyncSchemesService()
     service.run()

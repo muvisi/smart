@@ -60,6 +60,10 @@ app.conf.beat_schedule = {
         'task': 'jobs.tasks.sync_hais_copays_job',  
         'schedule': timedelta(minutes=5), 
     },
+     'sync-schemes-every-2-minutes': {
+        'task': 'jobs.tasks.sync_schemes_job',  
+        'schedule': timedelta(minutes=2), 
+    },
     
 }
 
