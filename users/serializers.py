@@ -1,21 +1,31 @@
-# from rest_framework import viewsets
-# from .models import Users
-# from .serializers import UsersSerializer
-
-# class UsersViewSet(viewsets.ModelViewSet):
-#     queryset = Users.objects.all()
-#     serializer_class = UsersSerializer
+from rest_framework import serializers
+from django.contrib.auth.hashers import make_password
+from .models import Users
 
 from rest_framework import serializers
 from .models import Users
-
 class UsersSerializer(serializers.ModelSerializer):
     class Meta:
         model = Users
         fields = ['uuid', 'username', 'email', 'password', 'first_name', 'last_name']
-        extra_kwargs = {
-            'password': {'write_only': True}  # Hide password in responses
-        }
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        # Hash the password before saving
+        password = validated_data.pop('password', None)
+        user = Users(**validated_data)
+        if password:
+            user.password = make_password(password)
+        user.save()
+        return user
+
+# class UsersSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Users
+#         fields = ['uuid', 'username', 'email', 'password', 'first_name', 'last_name']
+#         extra_kwargs = {
+#             'password': {'write_only': True}  # Hide password in responses
+#         }
         
 # from rest_framework import serializers
 # from django.contrib.auth.hashers import check_password
