@@ -449,6 +449,9 @@ class SyncHaisBenefitsService:
                 )
 
         print(f"✅ {success} benefit(s) successfully synced to SMART. {failed} failed.")
+
+
+
 # engine/benefits/services.py
 import time
 from urllib.parse import urlencode
