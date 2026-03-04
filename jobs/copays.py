@@ -563,7 +563,7 @@ class SyncHaisCopaysService:
                 "amount": float(c.get("copay_amt", 0.0))
             }
 
-            smart_url = f"{settings.SMART_API_BASE_URL}v2/integration/copay/setup?{urlencode({'country': settings.COUNTRY_CODE, 'customerid': settings.SMART_CUSTOMER_ID})}"
+            smart_url = f"{settings.SMART_API_BASE_URL}/copay/setup?{urlencode({'country': settings.COUNTRY_CODE, 'customerid': settings.SMART_CUSTOMER_ID})}"
 
             # 🔥 DEBUG PRINTS
             print("====================================")
