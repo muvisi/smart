@@ -22,11 +22,11 @@ def sync_benefits_job(self):
     
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60)
-def sync_retail_benefits_job(self):
-    service = SyncHaisRetailBenefitsService()
-    service.run()
-    print("HAIS Retail benefits sync job executed")
+# @shared_task(bind=True, max_retries=3, default_retry_delay=60)
+# def sync_retail_benefits_job(self):
+#     service = SyncHaisRetailBenefitsService()
+#     service.run()
+#     print("HAIS Retail benefits sync job executed")
     
     
 
@@ -75,7 +75,7 @@ def sync_retail_benefits_job(self):
     
         
     
-@shared_task
-def sync_hais_copays_job():
-    service = SyncHaisCopaysService()
-    service.run()
+# @shared_task
+# def sync_hais_copays_job():
+#     service = SyncHaisCopaysService()
+#     service.run()
