@@ -1,13 +1,10 @@
 # engine/benefits/services.py
 import requests
-from urllib.parse import urlencode
 from django.conf import settings
-
 from engine.models import BenefitSyncFailure, BenefitSyncSuccess
-# from .models import BenefitSyncSuccess, BenefitSyncFailure
 
 class SyncHaisBenefitsService:
-    """Service to sync HAIS benefits to SMART."""
+    """Service to sync HAIS benefits to SMART, fully corrected with required fields."""
 
     def get_hais_token(self):
         payload = {
@@ -39,7 +36,8 @@ class SyncHaisBenefitsService:
         }
         try:
             resp = requests.post(
-                f"{settings.SMART_ACCESS_TOKEN}{urlencode(payload)}",
+                f"{settings.SMART_ACCESS_TOKEN}",
+                data=payload,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 timeout=30,
                 verify=False
@@ -124,6 +122,11 @@ class SyncHaisBenefitsService:
 
         for b in benefits:
             try:
+                # Required SMART fields
+                service_type = b.get("service_type")        # MUST exist
+                sub_limit_amt = float(b.get("limit", 0))   # MUST exist
+                ben_type_id = b.get("benefit_sharing")     # MUST exist
+
                 benefit_desc = b.get("benefit_name")
                 policy_no = b.get("policy_no")
                 cln_pol_code = b.get("corp_id")
@@ -133,7 +136,7 @@ class SyncHaisBenefitsService:
                 user_id = b.get("user_id")
                 ben_linked = b.get("sub_limit_of") if b.get("sub_limit_of") != "0" else "-"
 
-                url_data = {
+                payload = {
                     "benefitDesc": benefit_desc,
                     "policyNumber": policy_no,
                     "clnPolCode": cln_pol_code,
@@ -142,13 +145,18 @@ class SyncHaisBenefitsService:
                     "benLinked2Tqcode": ben_linked,
                     "userId": user_id,
                     "countrycode": settings.COUNTRY_CODE,
-                    "customerid": settings.SMART_CUSTOMER_ID
+                    "customerid": settings.SMART_CUSTOMER_ID,
+                    # 🔹 Required fields
+                    "serviceType": service_type,
+                    "subLimitAmt": sub_limit_amt,
+                    "benTypeId": ben_type_id
                 }
 
-                smart_url = f"{settings.SMART_API_BASE_URL}benefits?{urlencode(url_data)}"
+                smart_url = f"{settings.SMART_API_BASE_URL}benefits"
                 smart_resp = requests.post(
                     smart_url,
-                    headers={"Authorization": f"Bearer {smart_token}"},
+                    json=payload,
+                    headers={"Authorization": f"Bearer {smart_token}", "Content-Type": "application/json"},
                     timeout=60,
                     verify=False
                 )
@@ -161,6 +169,7 @@ class SyncHaisBenefitsService:
                 smart_httpcode = smart_resp.status_code
                 sync_status = 1 if smart_data.get("successful") else 3
 
+                # Update HAIS benefit status and create log
                 update_req = {
                     "name": "updateSchemeBenefits",
                     "param": {
@@ -175,6 +184,7 @@ class SyncHaisBenefitsService:
                 self.update_hais_benefit(hais_token, update_req)
                 self.create_hais_log(hais_token, smart_httpcode, b, smart_data)
 
+                # Save in DB
                 summary = {
                     "corp_id": cln_pol_code,
                     "category": cat_desc,
@@ -207,9 +217,6 @@ class SyncHaisBenefitsService:
                 )
 
         print(f"HAIS benefits sync complete: {success} succeeded, {failed} failed")
-        
-        
-    
         
 # retail benefits
 
