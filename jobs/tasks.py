@@ -14,19 +14,19 @@ from jobs.waiting_periods import SyncHaisRetailWaitingPeriodsService
 #     return "Printed Hi"
 
 
-# @shared_task(bind=True)
-# def sync_benefits_job(self):
-#     service = SyncHaisBenefitsService()
-#     service.run()
-#     print("HAIS corporate benefits sync job executed")
+@shared_task(bind=True)
+def sync_benefits_job(self):
+    service = SyncHaisBenefitsService()
+    service.run()
+    print("HAIS corporate benefits sync job executed")
     
 
 
-# @shared_task(bind=True, max_retries=3, default_retry_delay=60)
-# def sync_retail_benefits_job(self):
-#     service = SyncHaisRetailBenefitsService()
-#     service.run()
-#     print("HAIS Retail benefits sync job executed")
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def sync_retail_benefits_job(self):
+    service = SyncHaisRetailBenefitsService()
+    service.run()
+    print("HAIS Retail benefits sync job executed")
     
     
 
