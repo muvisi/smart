@@ -60,10 +60,10 @@ def sync_provider_restrictions_job():
     service.run()
     
     
-@shared_task
-def sync_waiting_periods_job():
-    service=SyncHaisRetailWaitingPeriodsService()
-    service.run()
+# @shared_task
+# def sync_waiting_periods_job():
+#     service=SyncHaisRetailWaitingPeriodsService()
+#     service.run()
     
     
 @shared_task
