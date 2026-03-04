@@ -19,11 +19,11 @@ def debug_task(self):
 # --- Beat schedule for periodic tasks ---
 app.conf.beat_schedule = {
    
-#     "sync_benefits_every_2_min": {
-#         "task": "jobs.tasks.sync_benefits_job",
-#         "schedule": timedelta(minutes=2),
-#         "args": (),
-#     },
+    "sync_benefits_every_2_min": {
+        "task": "jobs.tasks.sync_benefits_job",
+        "schedule": timedelta(minutes=2),
+        "args": (),
+    },
 
     
 #     "sync_retail_benefits_every_2_min": {
