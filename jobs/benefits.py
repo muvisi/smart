@@ -221,21 +221,23 @@
 # # retail benefits
 
 
-# engine/benefits/services.py
-# engine/benefits/services.py
 import json
-import requests
 from urllib.parse import urlencode
+import requests
 from django.conf import settings
-from engine.models import BenefitSyncFailure, BenefitSyncSuccess
+from engine.models import BenefitSyncSuccess, BenefitSyncFailure
+
 
 class SyncHaisBenefitsService:
-    """Sync HAIS benefits to SMART using HAIS consumer key/secret for token."""
+    """
+    Sync HAIS corporate scheme benefits to SMART.
+    Logs API transactions and saves success/failure.
+    """
 
     country_code = "KE"
 
     def get_hais_token(self):
-        """Get HAIS token via generateToken endpoint using consumer key/secret"""
+        """Get HAIS token using consumer key/secret"""
         payload = {
             "name": "generateToken",
             "param": {
@@ -253,31 +255,36 @@ class SyncHaisBenefitsService:
             data = resp.json()
             if data.get("response", {}).get("status") == 200:
                 return data["response"]["result"]["accessToken"]
-        except Exception:
-            pass
+        except Exception as e:
+            print("❌ Failed to get HAIS token:", e)
         return None
 
     def get_smart_token(self):
-        """Get SMART token using credentials from settings"""
+        """Get SMART token using client credentials"""
         payload = {
             "client_id": settings.SMART_CLIENT_ID,
             "client_secret": settings.SMART_CLIENT_SECRET,
             "grant_type": settings.SMART_GRANT_TYPE
         }
-        token_url = f"{settings.SMART_ACCESS_TOKEN}?{urlencode(payload)}"
         try:
             resp = requests.post(
-                token_url,
+                settings.SMART_ACCESS_TOKEN,  # URL only, not with query string
+                data=payload,                 # form-encoded POST
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 verify=False,
                 timeout=30
             )
-            return resp.json().get("access_token")
-        except Exception:
+            resp.raise_for_status()
+            token = resp.json().get("access_token")
+            if not token:
+                print("❌ SMART token not returned:", resp.text)
+            return token
+        except Exception as e:
+            print("❌ Failed to get SMART token:", e)
             return None
 
     def get_hais_benefits(self, hais_token):
-        """Fetch HAIS benefits"""
+        """Fetch benefits from HAIS"""
         payload = {"name": "smartBenefits", "param": {}}
         try:
             resp = requests.post(
@@ -288,7 +295,8 @@ class SyncHaisBenefitsService:
             )
             return resp.json()
         except Exception as e:
-            return {"error": str(e)}
+            print("❌ Failed to fetch HAIS benefits:", e)
+            return {"response": {"status": 500, "result": None, "error": str(e)}}
 
     def update_hais_benefit(self, hais_token, clnPolCode, anniv, catDesc, clnBenCode, syncStatus):
         """Update HAIS benefit status"""
@@ -309,11 +317,11 @@ class SyncHaisBenefitsService:
                 json=payload,
                 timeout=30
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"❌ Failed to update HAIS benefit {clnBenCode}:", e)
 
     def create_hais_log(self, hais_token, smart_httpcode, request_obj, response_obj):
-        """Create HAIS API log"""
+        """Log API call to HAIS"""
         payload = {
             "name": "createApiLog",
             "param": {
@@ -331,24 +339,24 @@ class SyncHaisBenefitsService:
                 json=payload,
                 timeout=30
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print("❌ Failed to log API to HAIS:", e)
 
     def run(self):
-        """Run the sync process"""
+        """Run the benefits sync"""
         hais_token = self.get_hais_token()
         if not hais_token:
-            print("HAIS token not valid")
-            return
-
-        benefits_resp = self.get_hais_benefits(hais_token)
-        if benefits_resp.get("response", {}).get("status") != 200:
-            print("HAIS benefits fetch failed:", benefits_resp)
+            print("❌ HAIS token not valid")
             return
 
         smart_token = self.get_smart_token()
         if not smart_token:
-            print("SMART token not received")
+            print("❌ SMART token not received")
+            return
+
+        benefits_resp = self.get_hais_benefits(hais_token)
+        if benefits_resp.get("response", {}).get("status") != 200:
+            print("❌ HAIS benefits fetch failed:", benefits_resp)
             return
 
         benefits_list = benefits_resp["response"]["result"]
@@ -356,7 +364,6 @@ class SyncHaisBenefitsService:
 
         for b in benefits_list:
             try:
-                # Map fields exactly like your original script
                 benefitDesc = b.get("benefit_name")
                 policyNumber = b.get("policy_no")
                 benTypeId = b.get("benefit_sharing")
@@ -390,7 +397,6 @@ class SyncHaisBenefitsService:
                 }
 
                 smart_endpoint = f"{settings.SMART_API_BASE_URL}benefits?{urlencode(smart_payload)}"
-
                 try:
                     smart_resp = requests.post(
                         smart_endpoint,
@@ -421,6 +427,7 @@ class SyncHaisBenefitsService:
                     "smart_status": smart_httpcode,
                     "smart_response": decodedSmartBenefitResponse
                 }
+
                 if syncStatus == 1:
                     success += 1
                     BenefitSyncSuccess.objects.create(**summary)
@@ -441,7 +448,7 @@ class SyncHaisBenefitsService:
                     smart_response={"error": str(e)}
                 )
 
-        print(f"{success} benefit(s) successfully synced to SMART. {failed} failed.")
+        print(f"✅ {success} benefit(s) successfully synced to SMART. {failed} failed.")
 # engine/benefits/services.py
 import time
 from urllib.parse import urlencode
