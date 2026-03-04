@@ -122,6 +122,9 @@
 #                 print(f"❌ Error processing member {m.get('member_no')}: {e}")
 
 #         print("✅ HAIS Corporate Members sync job executed successfully")
+
+
+
 import requests
 from urllib.parse import urlencode
 from django.conf import settings
