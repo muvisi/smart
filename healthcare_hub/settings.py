@@ -257,17 +257,15 @@ HAIS_API_CONSUMER_SECRET = "smart2023"
 HAIS_API_BASE_URL = "http://192.168.0.135:8082/hais_api/"
 
 
+from datetime import timedelta
 
-# # settings.py
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = 'smtp.office365.com' 
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-
-# EMAIL_HOST_USER = 'haisnotifications@madison.co.ke'
-# EMAIL_HOST_PASSWORD = 'N!271111535161oz'
-
-# Email configuration for testing
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=1),   # 1 hour
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),   # keep default or adjust if needed
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": False,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.office365.com'
 EMAIL_PORT = 587

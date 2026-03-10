@@ -8,10 +8,6 @@ from jobs.members import SyncHaisMembersService, SyncRetailMembersService
 from jobs.restrictions import SyncProviderRestrictionsService
 from jobs.waiting_periods import SyncHaisRetailWaitingPeriodsService
 
-# @shared_task(bind=True)
-# def say_hi(self):
-#     print("Hi! Celery job is running")
-#     return "Printed Hi"
 
 
 @shared_task(bind=True)

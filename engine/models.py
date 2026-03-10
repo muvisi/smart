@@ -215,6 +215,7 @@ class ProviderRestrictionSyncFailure(models.Model):
     corp_id = models.CharField(max_length=50)
     provider_code = models.CharField(max_length=50)
     smart_restriction_category = models.JSONField()
+    request_object = models.JSONField(null=True, blank=True)
     user_id = models.CharField(max_length=50, null=True, blank=True)
     status_code = models.IntegerField()
     smart_response = models.JSONField()
@@ -230,6 +231,7 @@ class ProviderRestrictionSyncSuccess(models.Model):
     provider_code = models.CharField(max_length=50)
     smart_restriction_category = models.CharField(max_length=100)
     user_id = models.CharField(max_length=50, null=True, blank=True)
+    request_object = models.JSONField(null=True, blank=True)
     status_code = models.IntegerField()
     smart_response = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -246,6 +248,7 @@ class WaitingPeriodSyncFailure(models.Model):
     scheme_id = models.CharField(max_length=50)
     family_no = models.CharField(max_length=50)
     category = models.CharField(max_length=100)
+    request_object = models.JSONField(null=True, blank=True)
     benefit = models.CharField(max_length=100)
     anniv = models.CharField(max_length=50)
     status_code = models.IntegerField()
@@ -260,6 +263,7 @@ class WaitingPeriodSyncSuccess(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     scheme_id = models.CharField(max_length=50)
     family_no = models.CharField(max_length=50)
+    request_object = models.JSONField(null=True, blank=True)
     benefit = models.CharField(max_length=50)
     anniv = models.CharField(max_length=50)
     status_code = models.IntegerField()
@@ -274,6 +278,7 @@ class HaisCategorySyncSuccess(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     corp_id = models.CharField(max_length=50)
     category_name = models.CharField(max_length=100)
+    request_object = models.JSONField(null=True, blank=True)
     anniv = models.CharField(max_length=10)
     user_id = models.CharField(max_length=50)
     status_code = models.IntegerField()
@@ -288,6 +293,7 @@ class HaisCategorySyncFailure(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     corp_id = models.CharField(max_length=50)
     category_name = models.CharField(max_length=100)
+    request_object = models.JSONField(null=True, blank=True)
     anniv = models.CharField(max_length=10)
     user_id = models.CharField(max_length=50)
     status_code = models.IntegerField()
@@ -308,6 +314,7 @@ class BenefitSyncSuccess(models.Model):
     anniv = models.CharField(max_length=10)
     benefit_id = models.CharField(max_length=50)
     benefit_name = models.CharField(max_length=100)
+    request_object = models.JSONField(null=True, blank=True)
     policy_no = models.CharField(max_length=50)
     smart_status = models.IntegerField()
     smart_response = models.JSONField()
@@ -323,6 +330,7 @@ class BenefitSyncFailure(models.Model):
     category = models.CharField(max_length=50)
     anniv = models.CharField(max_length=10)
     benefit_id = models.CharField(max_length=50)
+    request_object = models.JSONField(null=True, blank=True)
     benefit_name = models.CharField(max_length=100)
     policy_no = models.CharField(max_length=50)
     smart_status = models.IntegerField()
@@ -340,6 +348,7 @@ class MemberSyncSuccess(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     member_no = models.CharField(max_length=50)
     family_no = models.CharField(max_length=50)
+    request_object = models.JSONField(null=True, blank=True)
     surname = models.CharField(max_length=50)
     second_name = models.CharField(max_length=50, blank=True)
     third_name = models.CharField(max_length=50, blank=True)
@@ -347,8 +356,8 @@ class MemberSyncSuccess(models.Model):
     category = models.CharField(max_length=50)
     anniv = models.CharField(max_length=10)
     corp_id = models.CharField(max_length=50)
-    smart_status = models.IntegerField()
-    smart_response = models.JSONField()
+    smart_status = models.IntegerField(blank=True,null=True)
+    smart_response = models.JSONField(blank=True,null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -359,6 +368,7 @@ class MemberSyncFailure(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     member_no = models.CharField(max_length=50)
     family_no = models.CharField(max_length=50)
+    request_object = models.JSONField(null=True, blank=True)
     surname = models.CharField(max_length=50)
     second_name = models.CharField(max_length=50, blank=True)
     third_name = models.CharField(max_length=50, blank=True)
@@ -366,8 +376,8 @@ class MemberSyncFailure(models.Model):
     category = models.CharField(max_length=50)
     anniv = models.CharField(max_length=10)
     corp_id = models.CharField(max_length=50)
-    smart_status = models.IntegerField()
-    smart_response = models.JSONField()
+    smart_status = models.IntegerField(blank=True,null=True)
+    smart_response = models.JSONField( blank=True,null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -390,6 +400,7 @@ class ApiSyncLog(models.Model):
     response_object = models.JSONField(null=True, blank=True)
     status = models.IntegerField(choices=STATUS_CHOICES)
     http_code = models.IntegerField(null=True, blank=True)
+    request_object = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -415,6 +426,7 @@ class CopayLog(models.Model):
     request_object = models.JSONField(null=True, blank=True)   # Updated
     response_object = models.JSONField(null=True, blank=True)  # Updated
     status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES)
+    request_object = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
