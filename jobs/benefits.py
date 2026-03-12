@@ -452,23 +452,559 @@ class SyncHaisBenefitsService:
 
 
 
+# # engine/benefits/services.py
+# import time
+# from urllib.parse import urlencode
+# import requests
+# from django.conf import settings
+# from engine.models import BenefitSyncSuccess, BenefitSyncFailure
+
+# class SyncHaisRetailBenefitsService:
+#     """
+#     Service to sync HAIS retail benefits to SMART using consumer key/secret for token,
+#     with logging and DB updates.
+#     """
+
+#     country_code = "KE"
+
+#     def get_hais_token(self):
+#         """Get HAIS token via generateToken endpoint using consumer key/secret"""
+#         payload = {
+#             "name": "generateToken",
+#             "param": {
+#                 "consumer_key": settings.HAIS_API_CONSUMER_KEY,
+#                 "consumer_secret": settings.HAIS_API_CONSUMER_SECRET
+#             }
+#         }
+#         try:
+#             resp = requests.post(
+#                 settings.HAIS_API_BASE_URL,
+#                 json=payload,
+#                 headers={"Content-Type": "application/json"},
+#                 timeout=30
+#             )
+#             data = resp.json()
+#             if data.get("response", {}).get("status") == 200:
+#                 return data["response"]["result"]["accessToken"]
+#         except Exception:
+#             pass
+#         return None
+
+#     def get_smart_token(self):
+#         """Get SMART token"""
+#         payload = {
+#             "client_id": settings.SMART_CLIENT_ID,
+#             "client_secret": settings.SMART_CLIENT_SECRET,
+#             "grant_type": settings.SMART_GRANT_TYPE
+#         }
+#         token_url = f"{settings.SMART_ACCESS_TOKEN}?{urlencode(payload)}"
+#         try:
+#             resp = requests.post(
+#                 token_url,
+#                 headers={"Content-Type": "application/x-www-form-urlencoded"},
+#                 verify=False,
+#                 timeout=30
+#             )
+#             return resp.json().get("access_token")
+#         except Exception:
+#             return None
+
+#     def get_hais_benefits(self, hais_token):
+#         """Fetch HAIS retail benefits"""
+#         payload = {"name": "smartRetailBenefits", "param": {}}
+#         try:
+#             resp = requests.post(
+#                 settings.HAIS_API_BASE_URL,
+#                 json=payload,
+#                 headers={
+#                     "Authorization": f"Bearer {hais_token}",
+#                     "Content-Type": "application/json"
+#                 },
+#                 timeout=30
+#             )
+#             return resp.json()
+#         except Exception as e:
+#             return {"error": str(e)}
+
+#     def update_hais_benefit_status(self, hais_token, family_no, anniv, cln_ben_code, status):
+#         """Update HAIS retail benefit status"""
+#         payload = {
+#             "name": "updateRetailSchemeBenefits",
+#             "param": {
+#                 "family_no": family_no,
+#                 "anniv": anniv,
+#                 "benefit": cln_ben_code,
+#                 "status": status
+#             }
+#         }
+#         try:
+#             requests.post(
+#                 settings.HAIS_API_BASE_URL,
+#                 json=payload,
+#                 headers={
+#                     "Authorization": f"Bearer {hais_token}",
+#                     "Content-Type": "application/json"
+#                 },
+#                 timeout=30
+#             )
+#         except Exception:
+#             pass
+
+#     def create_hais_log(self, hais_token, smart_httpcode, request_obj, response_obj):
+#         """Log retail benefit sync to HAIS"""
+#         payload = {
+#             "name": "createApiLog",
+#             "param": {
+#                 "source": "HAIS-SMART",
+#                 "transactionName": "Retail Scheme Benefit",
+#                 "statusCode": smart_httpcode,
+#                 "requestObject": [request_obj],
+#                 "responseObject": [response_obj]
+#             }
+#         }
+#         try:
+#             requests.post(
+#                 settings.HAIS_API_BASE_URL,
+#                 json=payload,
+#                 headers={
+#                     "Authorization": f"Bearer {hais_token}",
+#                     "Content-Type": "application/json"
+#                 },
+#                 timeout=30
+#             )
+#         except Exception:
+#             pass
+
+#     def run(self):
+#         hais_token = self.get_hais_token()
+#         if not hais_token:
+#             print("Failed to get HAIS token")
+#             return
+
+#         smart_token = self.get_smart_token()
+#         if not smart_token:
+#             print("Failed to get SMART token")
+#             return
+
+#         benefits_resp = self.get_hais_benefits(hais_token)
+#         if benefits_resp.get("response", {}).get("status") != 200:
+#             print("Failed to fetch HAIS benefits")
+#             return
+
+#         benefits = benefits_resp["response"]["result"]
+#         print(f"Fetched {len(benefits)} HAIS retail benefits")
+
+#         success, failed = 0, 0
+#         max_per_minute = 200
+#         delay_per_request = 60 / max_per_minute
+
+#         for idx, b in enumerate(benefits, start=1):
+#             try:
+#                 family_no = b.get("category_id")
+#                 benefit_desc = b.get("benefit_name")
+#                 policy_number = b.get("scheme_id")
+#                 ben_type_id = b.get("benefit_sharing")
+#                 sub_limit_amt = b.get("limit")
+#                 service_type = b.get("service_type")
+#                 mem_assigned_benefit = b.get("member_assigned_benefit")
+#                 cln_pol_code = b.get("scheme_id")
+#                 cat_code = f"{b.get('category_name')}-{b.get('anniv')}"
+#                 cln_ben_code = b.get("benefit_id")
+#                 ben_typ_desc = b.get("benefit_sharing_descr")
+#                 anniv = b.get("anniv")
+#                 user_id = b.get("user_id")
+#                 ben_linked2tqcode = b.get("sub_limit_of") if b.get("sub_limit_of") != "0" else "-"
+
+#                 smart_payload = {
+#                     "benefitDesc": benefit_desc,
+#                     "policyNumber": policy_number,
+#                     "benTypeId": ben_type_id,
+#                     "subLimitAmt": sub_limit_amt,
+#                     "serviceType": service_type,
+#                     "memAssignedBenefit": mem_assigned_benefit,
+#                     "clnPolCode": cln_pol_code,
+#                     "catCode": cat_code,
+#                     "clnBenCode": cln_ben_code,
+#                     "benTypDesc": ben_typ_desc,
+#                     "benLinked2Tqcode": ben_linked2tqcode,
+#                     "userId": user_id,
+#                     "countrycode": self.country_code,
+#                     "customerid": settings.SMART_CUSTOMER_ID
+#                 }
+
+#                 smart_url = f"{settings.SMART_API_BASE_URL}benefits?{urlencode(smart_payload)}"
+#                 try:
+#                     smart_resp = requests.post(
+#                         smart_url,
+#                         headers={"Authorization": f"Bearer {smart_token}"},
+#                         verify=False,
+#                         timeout=30
+#                     )
+#                     smart_data = smart_resp.json()
+#                     smart_httpcode = smart_resp.status_code
+#                 except Exception:
+#                     smart_data = {}
+#                     smart_httpcode = 500
+
+#                 sync_status = 1 if smart_data.get("successful") else 3
+
+#                 self.update_hais_benefit_status(hais_token, family_no, anniv, cln_ben_code, sync_status)
+#                 self.create_hais_log(hais_token, smart_httpcode, b, smart_data)
+
+#                 benefit_summary = {
+#                     "benefit_id": cln_ben_code,
+#                     "benefit_name": benefit_desc,
+#                     "policy_no": policy_number,
+#                     "corp_id": cln_pol_code,
+#                     "category": b.get("category_name"),
+#                     "anniv": anniv,
+#                     "smart_status": smart_httpcode,
+#                     "smart_response": smart_data
+#                 }
+
+#                 if sync_status == 1:
+#                     BenefitSyncSuccess.objects.create(**benefit_summary)
+#                     success += 1
+#                 else:
+#                     BenefitSyncFailure.objects.create(**benefit_summary)
+#                     failed += 1
+
+#                 print(f"Pushed benefit {idx}: {benefit_summary}")
+
+#                 # Throttle requests
+#                 if idx % max_per_minute == 0:
+#                     time.sleep(60)
+#                 else:
+#                     time.sleep(delay_per_request)
+
+#             except Exception as e:
+#                 failed += 1
+#                 BenefitSyncFailure.objects.create(
+#                     corp_id=b.get("scheme_id"),
+#                     category=b.get("category_name"),
+#                     anniv=b.get("anniv"),
+#                     benefit_id=b.get("benefit_id"),
+#                     benefit_name=b.get("benefit_name"),
+#                     policy_no=b.get("scheme_id"),
+#                     smart_status=500,
+#                     smart_response={"error": str(e)}
+#                 )
+
+#         print(f"Sync complete: {success} succeeded, {failed} failed")
+
 # engine/benefits/services.py
+
+# import time
+# from urllib.parse import urlencode
+# import requests
+# from django.conf import settings
+# from engine.models import BenefitSyncSuccess, BenefitSyncFailure
+
+
+# class SyncHaisRetailBenefitsService:
+
+#     country_code = "KE"
+
+#     def get_hais_token(self):
+#         payload = {
+#             "name": "generateToken",
+#             "param": {
+#                 "consumer_key": settings.HAIS_API_CONSUMER_KEY,
+#                 "consumer_secret": settings.HAIS_API_CONSUMER_SECRET
+#             }
+#         }
+
+#         try:
+#             resp = requests.post(
+#                 settings.HAIS_API_BASE_URL,
+#                 json=payload,
+#                 headers={"Content-Type": "application/json"},
+#                 timeout=30
+#             )
+#             data = resp.json()
+
+#             if data.get("response", {}).get("status") == 200:
+#                 return data["response"]["result"]["accessToken"]
+
+#         except Exception:
+#             pass
+
+#         return None
+
+
+#     def get_smart_token(self):
+#         payload = {
+#             "client_id": settings.SMART_CLIENT_ID,
+#             "client_secret": settings.SMART_CLIENT_SECRET,
+#             "grant_type": settings.SMART_GRANT_TYPE
+#         }
+
+#         token_url = f"{settings.SMART_ACCESS_TOKEN}?{urlencode(payload)}"
+
+#         try:
+#             resp = requests.post(
+#                 token_url,
+#                 headers={"Content-Type": "application/x-www-form-urlencoded"},
+#                 verify=False,
+#                 timeout=30
+#             )
+
+#             return resp.json().get("access_token")
+
+#         except Exception:
+#             return None
+
+
+#     def get_hais_benefits(self, hais_token):
+#         payload = {"name": "smartRetailBenefits", "param": {}}
+
+#         try:
+#             resp = requests.post(
+#                 settings.HAIS_API_BASE_URL,
+#                 json=payload,
+#                 headers={
+#                     "Authorization": f"Bearer {hais_token}",
+#                     "Content-Type": "application/json"
+#                 },
+#                 timeout=30
+#             )
+
+#             return resp.json()
+
+#         except Exception as e:
+#             return {"error": str(e)}
+
+
+#     def update_hais_benefit_status(self, hais_token, family_no, anniv, cln_ben_code, status):
+
+#         payload = {
+#             "name": "updateRetailSchemeBenefits",
+#             "param": {
+#                 "family_no": family_no,
+#                 "anniv": anniv,
+#                 "benefit": cln_ben_code,
+#                 "status": status
+#             }
+#         }
+
+#         try:
+#             requests.post(
+#                 settings.HAIS_API_BASE_URL,
+#                 json=payload,
+#                 headers={
+#                     "Authorization": f"Bearer {hais_token}",
+#                     "Content-Type": "application/json"
+#                 },
+#                 timeout=30
+#             )
+#         except Exception:
+#             pass
+
+
+#     def create_hais_log(self, hais_token, smart_httpcode, request_obj, response_obj):
+
+#         payload = {
+#             "name": "createApiLog",
+#             "param": {
+#                 "source": "HAIS-SMART",
+#                 "transactionName": "Retail Scheme Benefit",
+#                 "statusCode": smart_httpcode,
+#                 "requestObject": [request_obj],
+#                 "responseObject": [response_obj]
+#             }
+#         }
+
+#         try:
+#             requests.post(
+#                 settings.HAIS_API_BASE_URL,
+#                 json=payload,
+#                 headers={
+#                     "Authorization": f"Bearer {hais_token}",
+#                     "Content-Type": "application/json"
+#                 },
+#                 timeout=30
+#             )
+#         except Exception:
+#             pass
+
+
+#     def run(self):
+
+#         hais_token = self.get_hais_token()
+#         if not hais_token:
+#             print("Failed to get HAIS token")
+#             return
+
+#         smart_token = self.get_smart_token()
+#         if not smart_token:
+#             print("Failed to get SMART token")
+#             return
+
+#         benefits_resp = self.get_hais_benefits(hais_token)
+
+#         if benefits_resp.get("response", {}).get("status") != 200:
+#             print("Failed to fetch HAIS benefits")
+#             return
+
+#         benefits = benefits_resp["response"]["result"]
+
+#         print(f"Fetched {len(benefits)} HAIS retail benefits")
+
+#         success = 0
+#         failed = 0
+
+#         max_per_minute = 200
+#         delay_per_request = 60 / max_per_minute
+
+
+#         for idx, b in enumerate(benefits, start=1):
+
+#             try:
+
+#                 family_no = b.get("category_id")
+#                 benefit_desc = b.get("benefit_name")
+#                 policy_number = b.get("scheme_id")
+#                 ben_type_id = b.get("benefit_sharing")
+#                 sub_limit_amt = b.get("limit")
+#                 service_type = b.get("service_type")
+#                 mem_assigned_benefit = b.get("member_assigned_benefit")
+#                 cln_pol_code = b.get("scheme_id")
+#                 cat_code = f"{b.get('category_name')}-{b.get('anniv')}"
+#                 cln_ben_code = b.get("benefit_id")
+#                 ben_typ_desc = b.get("benefit_sharing_descr")
+#                 anniv = b.get("anniv")
+#                 user_id = b.get("user_id")
+
+#                 ben_linked2tqcode = b.get("sub_limit_of") if b.get("sub_limit_of") != "0" else "-"
+
+
+#                 smart_payload = {
+#                     "benefitDesc": benefit_desc,
+#                     "policyNumber": policy_number,
+#                     "benTypeId": ben_type_id,
+#                     "subLimitAmt": sub_limit_amt,
+#                     "serviceType": service_type,
+#                     "memAssignedBenefit": mem_assigned_benefit,
+#                     "clnPolCode": cln_pol_code,
+#                     "catCode": cat_code,
+#                     "clnBenCode": cln_ben_code,
+#                     "benTypDesc": ben_typ_desc,
+#                     "benLinked2Tqcode": ben_linked2tqcode,
+#                     "userId": user_id,
+#                     "countrycode": self.country_code,
+#                     "customerid": settings.SMART_CUSTOMER_ID
+#                 }
+
+#                 print("SMART BENEFIT PAYLOAD:", smart_payload)
+
+#                 smart_url = f"{settings.SMART_API_BASE_URL}benefits?{urlencode(smart_payload)}"
+
+#                 try:
+
+#                     smart_resp = requests.post(
+#                         smart_url,
+#                         headers={"Authorization": f"Bearer {smart_token}"},
+#                         verify=False,
+#                         timeout=30
+#                     )
+
+#                     smart_data = smart_resp.json()
+#                     smart_httpcode = smart_resp.status_code
+
+#                 except Exception:
+
+#                     smart_data = {}
+#                     smart_httpcode = 500
+
+
+#                 sync_status = 1 if smart_data.get("successful") else 3
+
+
+#                 self.update_hais_benefit_status(
+#                     hais_token,
+#                     family_no,
+#                     anniv,
+#                     cln_ben_code,
+#                     sync_status
+#                 )
+
+
+#                 self.create_hais_log(
+#                     hais_token,
+#                     smart_httpcode,
+#                     smart_payload,
+#                     smart_data
+#                 )
+
+
+#                 benefit_summary = {
+#                     "corp_id": cln_pol_code,
+#                     "category": b.get("category_name"),
+#                     "anniv": anniv,
+#                     "benefit_id": cln_ben_code,
+#                     "benefit_name": benefit_desc,
+#                     "policy_no": policy_number,
+#                     "request_object": smart_payload,
+#                     "smart_status": smart_httpcode,
+#                     "smart_response": smart_data
+#                 }
+
+
+#                 if sync_status == 1:
+#                     BenefitSyncSuccess.objects.create(**benefit_summary)
+#                     success += 1
+#                 else:
+#                     BenefitSyncFailure.objects.create(**benefit_summary)
+#                     failed += 1
+
+
+#                 print(f"Pushed benefit {idx}: {benefit_summary}")
+
+
+#                 if idx % max_per_minute == 0:
+#                     time.sleep(60)
+#                 else:
+#                     time.sleep(delay_per_request)
+
+
+#             except Exception as e:
+
+#                 failed += 1
+
+#                 BenefitSyncFailure.objects.create(
+#                     corp_id=b.get("scheme_id"),
+#                     category=b.get("category_name"),
+#                     anniv=b.get("anniv"),
+#                     benefit_id=b.get("benefit_id"),
+#                     benefit_name=b.get("benefit_name"),
+#                     policy_no=b.get("scheme_id"),
+#                     request_object=b,
+#                     smart_status=500,
+#                     smart_response={"error": str(e)}
+#                 )
+
+
+#         print(f"Sync complete: {success} succeeded, {failed} failed")
+
+
 import time
+import json
 from urllib.parse import urlencode
 import requests
 from django.conf import settings
 from engine.models import BenefitSyncSuccess, BenefitSyncFailure
 
+
 class SyncHaisRetailBenefitsService:
     """
-    Service to sync HAIS retail benefits to SMART using consumer key/secret for token,
-    with logging and DB updates.
+    Sync HAIS retail scheme benefits to SMART.
+    Updated with working token logic and improved logging.
     """
 
     country_code = "KE"
 
     def get_hais_token(self):
-        """Get HAIS token via generateToken endpoint using consumer key/secret"""
+        """Get HAIS token using consumer key/secret"""
         payload = {
             "name": "generateToken",
             "param": {
@@ -486,31 +1022,37 @@ class SyncHaisRetailBenefitsService:
             data = resp.json()
             if data.get("response", {}).get("status") == 200:
                 return data["response"]["result"]["accessToken"]
-        except Exception:
-            pass
+        except Exception as e:
+            print("❌ Failed to get HAIS token:", e)
         return None
 
     def get_smart_token(self):
-        """Get SMART token"""
+        """Get SMART token using client credentials (Form-encoded POST)"""
         payload = {
             "client_id": settings.SMART_CLIENT_ID,
             "client_secret": settings.SMART_CLIENT_SECRET,
             "grant_type": settings.SMART_GRANT_TYPE
         }
-        token_url = f"{settings.SMART_ACCESS_TOKEN}?{urlencode(payload)}"
         try:
+            # Changed from query params in URL to data=payload (form-encoded body)
             resp = requests.post(
-                token_url,
+                settings.SMART_ACCESS_TOKEN,
+                data=payload,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 verify=False,
                 timeout=30
             )
-            return resp.json().get("access_token")
-        except Exception:
+            resp.raise_for_status()
+            token = resp.json().get("access_token")
+            if not token:
+                print("❌ SMART token not returned:", resp.text)
+            return token
+        except Exception as e:
+            print("❌ Failed to get SMART token:", e)
             return None
 
     def get_hais_benefits(self, hais_token):
-        """Fetch HAIS retail benefits"""
+        """Fetch retail benefits from HAIS"""
         payload = {"name": "smartRetailBenefits", "param": {}}
         try:
             resp = requests.post(
@@ -524,7 +1066,8 @@ class SyncHaisRetailBenefitsService:
             )
             return resp.json()
         except Exception as e:
-            return {"error": str(e)}
+            print("❌ Failed to fetch HAIS benefits:", e)
+            return {"response": {"status": 500, "result": None, "error": str(e)}}
 
     def update_hais_benefit_status(self, hais_token, family_no, anniv, cln_ben_code, status):
         """Update HAIS retail benefit status"""
@@ -547,19 +1090,19 @@ class SyncHaisRetailBenefitsService:
                 },
                 timeout=30
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"❌ Failed to update HAIS status for {cln_ben_code}:", e)
 
     def create_hais_log(self, hais_token, smart_httpcode, request_obj, response_obj):
-        """Log retail benefit sync to HAIS"""
+        """Log API call to HAIS using serialized JSON"""
         payload = {
             "name": "createApiLog",
             "param": {
                 "source": "HAIS-SMART",
                 "transactionName": "Retail Scheme Benefit",
                 "statusCode": smart_httpcode,
-                "requestObject": [request_obj],
-                "responseObject": [response_obj]
+                "requestObject": [json.dumps(request_obj)],
+                "responseObject": [json.dumps(response_obj)]
             }
         }
         try:
@@ -572,23 +1115,24 @@ class SyncHaisRetailBenefitsService:
                 },
                 timeout=30
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print("❌ Failed to log API to HAIS:", e)
 
     def run(self):
+        """Run the retail benefits sync"""
         hais_token = self.get_hais_token()
         if not hais_token:
-            print("Failed to get HAIS token")
+            print("❌ HAIS token not valid")
             return
 
         smart_token = self.get_smart_token()
         if not smart_token:
-            print("Failed to get SMART token")
+            print("❌ SMART token not received")
             return
 
         benefits_resp = self.get_hais_benefits(hais_token)
         if benefits_resp.get("response", {}).get("status") != 200:
-            print("Failed to fetch HAIS benefits")
+            print("❌ HAIS benefits fetch failed")
             return
 
         benefits = benefits_resp["response"]["result"]
@@ -633,6 +1177,7 @@ class SyncHaisRetailBenefitsService:
                 }
 
                 smart_url = f"{settings.SMART_API_BASE_URL}benefits?{urlencode(smart_payload)}"
+
                 try:
                     smart_resp = requests.post(
                         smart_url,
@@ -642,22 +1187,23 @@ class SyncHaisRetailBenefitsService:
                     )
                     smart_data = smart_resp.json()
                     smart_httpcode = smart_resp.status_code
-                except Exception:
-                    smart_data = {}
+                    sync_status = 1 if smart_data.get("successful") else 3
+                except Exception as e:
+                    smart_data = {"error": str(e)}
                     smart_httpcode = 500
+                    sync_status = 3
 
-                sync_status = 1 if smart_data.get("successful") else 3
-
+                # Update HAIS & Create Log
                 self.update_hais_benefit_status(hais_token, family_no, anniv, cln_ben_code, sync_status)
-                self.create_hais_log(hais_token, smart_httpcode, b, smart_data)
+                self.create_hais_log(hais_token, smart_httpcode, smart_payload, smart_data)
 
                 benefit_summary = {
-                    "benefit_id": cln_ben_code,
-                    "benefit_name": benefit_desc,
-                    "policy_no": policy_number,
                     "corp_id": cln_pol_code,
                     "category": b.get("category_name"),
                     "anniv": anniv,
+                    "benefit_id": cln_ben_code,
+                    "benefit_name": benefit_desc,
+                    "policy_no": policy_number,
                     "smart_status": smart_httpcode,
                     "smart_response": smart_data
                 }
@@ -669,9 +1215,9 @@ class SyncHaisRetailBenefitsService:
                     BenefitSyncFailure.objects.create(**benefit_summary)
                     failed += 1
 
-                print(f"Pushed benefit {idx}: {benefit_summary}")
+                print(f"Pushed benefit {idx}/{len(benefits)}: {cln_ben_code}")
 
-                # Throttle requests
+                # Throttling
                 if idx % max_per_minute == 0:
                     time.sleep(60)
                 else:
@@ -679,6 +1225,7 @@ class SyncHaisRetailBenefitsService:
 
             except Exception as e:
                 failed += 1
+                print(f"❌ Error processing benefit index {idx}: {e}")
                 BenefitSyncFailure.objects.create(
                     corp_id=b.get("scheme_id"),
                     category=b.get("category_name"),
