@@ -1218,10 +1218,10 @@ class SyncHaisRetailBenefitsService:
                 print(f"Pushed benefit {idx}/{len(benefits)}: {cln_ben_code}")
 
                 # Throttling
-                if idx % max_per_minute == 0:
-                    time.sleep(60)
-                else:
-                    time.sleep(delay_per_request)
+                # if idx % max_per_minute == 0:
+                #     time.sleep(60)
+                # else:
+                #     time.sleep(delay_per_request)
 
             except Exception as e:
                 failed += 1

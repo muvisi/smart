@@ -12,9 +12,9 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 
 # --- Debug task to test Celery setup ---
-@app.task(bind=True)
-def debug_task(self):
-    print(f"Celery debug task running: {self.request}")
+# @app.task(bind=True)
+# def debug_task(self):
+#     print(f"Celery debug task running: {self.request}")
 
 # --- Beat schedule for periodic tasks ---
 app.conf.beat_schedule = {
@@ -52,14 +52,14 @@ app.conf.beat_schedule = {
     "task": "jobs.tasks.sync_provider_restrictions_job",
     "schedule": timedelta(minutes=2),
 },
-    # "sync_waiting_periods_every_2_min": {
-    #     "task": "jobs.tasks.sync_waiting_periods_job",
-    #     "schedule": timedelta(minutes=2),
-    # },
-     'sync-copays-every-5-minutes': {
-        'task': 'jobs.tasks.sync_hais_copays_job',  
-        'schedule': timedelta(minutes=1), 
+    "sync_waiting_periods_every_2_min": {
+        "task": "jobs.tasks.sync_waiting_periods_job",
+        "schedule": timedelta(minutes=2),
     },
+    #  'sync-copays-every-5-minutes': {
+    #     'task': 'jobs.tasks.sync_hais_copays_job',  
+    #     'schedule': timedelta(minutes=1), 
+    # },
      'sync-schemes-every-2-minutes': {
         'task': 'jobs.tasks.sync_schemes_job',  
         'schedule': timedelta(minutes=1), 

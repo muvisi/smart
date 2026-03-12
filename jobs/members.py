@@ -7,6 +7,7 @@ from engine.models import MemberSyncSuccess, MemberSyncFailure
 class SyncHaisMembersService:
 
     def get_hais_token(self):
+        """Fetch HAIS token"""
         payload = {
             "name": "generateToken",
             "param": {
@@ -22,19 +23,17 @@ class SyncHaisMembersService:
                 headers={"Content-Type": "application/json"},
                 timeout=30
             )
-
             data = resp.json()
-
             if data.get("response", {}).get("status") == 200:
                 return data["response"]["result"]["accessToken"]
 
         except Exception as e:
-            print(f"HAIS Auth Error: {e}")
+            print(f"❌ HAIS Auth Error: {e}")
 
         return None
 
-
     def get_smart_token(self):
+        """Fetch SMART token"""
         payload = {
             "client_id": settings.SMART_CLIENT_ID,
             "client_secret": settings.SMART_CLIENT_SECRET,
@@ -48,21 +47,16 @@ class SyncHaisMembersService:
                 verify=False,
                 timeout=30
             )
-
             return resp.json().get("access_token")
 
         except Exception as e:
-            print(f"SMART Auth Error: {e}")
+            print(f"❌ SMART Auth Error: {e}")
 
         return None
 
-
     def get_hais_members(self, hais_token):
-        payload = {
-            "name": "smartCorporateMembers",
-            "param": {}
-        }
-
+        """Fetch members from HAIS"""
+        payload = {"name": "smartCorporateMembers", "param": {}}
         try:
             resp = requests.post(
                 settings.HAIS_API_BASE_URL,
@@ -73,48 +67,44 @@ class SyncHaisMembersService:
                 },
                 timeout=60
             )
-
             return resp.json()
-
         except Exception as e:
             return {"error": str(e)}
 
-
     def run(self):
-
-        print("CORPORATE SYNC STARTED")
+        print("🔄 HAIS CORPORATE MEMBERS SYNC STARTED")
 
         hais_token = self.get_hais_token()
         smart_token = self.get_smart_token()
 
-        if not hais_token or not smart_token:
-            print("Authentication failed")
+        if not hais_token:
+            print("❌ Failed to get HAIS token")
+            return
+
+        if not smart_token:
+            print("❌ Failed to get SMART token")
             return
 
         members_resp = self.get_hais_members(hais_token)
-
         if members_resp.get("response", {}).get("status") != 200:
-            print("Failed to fetch members")
+            print("❌ Failed to fetch members")
             return
 
         members = members_resp["response"]["result"]
+        success, failed = 0, 0
 
         for m in members:
-
             try:
-
                 # -------- Name Parsing --------
-                full_name = m.get("member_name") or ""
+                full_name = m.get("member_name", "")
                 names = full_name.split()
-
                 surname = names[0] if len(names) > 0 else ""
                 second_name = names[1] if len(names) > 1 else ""
                 third_name = names[2] if len(names) > 2 else ""
 
                 # -------- Phone Parsing --------
-                raw_phone = m.get("mobile_no")
-                phone = str(raw_phone).replace(" ", "") if raw_phone else ""
-
+                raw_phone = m.get("mobile_no", "")
+                phone = str(raw_phone).replace(" ", "")
                 if phone.startswith("0"):
                     mobile_phone = f"254{phone[1:]}"
                 elif phone.startswith("254"):
@@ -122,11 +112,11 @@ class SyncHaisMembersService:
                 else:
                     mobile_phone = phone
 
-                anniv = m.get("anniv") or ""
+                anniv = m.get("anniv", "")
                 membership_number = m.get("member_no")
                 family_code = m.get("family_no")
 
-                # -------- PAYLOAD SENT TO SMART --------
+                # -------- SMART PAYLOAD --------
                 smart_payload = {
                     "familyCode": family_code,
                     "membershipNumber": membership_number,
@@ -137,21 +127,18 @@ class SyncHaisMembersService:
                     "otherNames": "",
                     "dob": m.get("dob", ""),
                     "gender": m.get("gender", ""),
-                    "memType": m.get("member_type"),
-                    "schemeStartDate": m.get("start_date"),
-                    "schemeEndDate": m.get("end_date"),
-                    "clnCatCode": f"{m.get('category')}-{anniv}",
-                    "clnPolCode": m.get("corp_id"),
+                    "memType": m.get("member_type", ""),
+                    "schemeStartDate": m.get("start_date", ""),
+                    "schemeEndDate": m.get("end_date", ""),
+                    "clnCatCode": f"{m.get('category', '')}-{anniv}",
+                    "clnPolCode": m.get("corp_id", ""),
                     "phone_number": mobile_phone,
                     "email_address": m.get("email", ""),
-                    "userID": m.get("user_id"),
+                    "userID": m.get("user_id", ""),
                     "country": settings.COUNTRY_CODE,
                     "customerid": settings.SMART_CUSTOMER_ID,
                     "roamingCountries": settings.COUNTRY_CODE
                 }
-
-                # Print payload for debugging
-                print("SMART PAYLOAD:", smart_payload)
 
                 smart_url = f"{settings.SMART_API_BASE_URL}members"
 
@@ -168,10 +155,10 @@ class SyncHaisMembersService:
 
                 try:
                     smart_data = smart_resp.json()
-                except:
+                except Exception:
                     smart_data = {"raw_response": smart_resp.text}
 
-                # -------- DATABASE DATA --------
+                # -------- DATABASE RECORD --------
                 db_data = {
                     "member_no": membership_number,
                     "family_no": family_code,
@@ -180,23 +167,25 @@ class SyncHaisMembersService:
                     "second_name": second_name,
                     "third_name": third_name,
                     "other_names": "",
-                    "category": m.get("category"),
+                    "category": m.get("category", ""),
                     "anniv": anniv,
-                    "corp_id": m.get("corp_id"),
+                    "corp_id": m.get("corp_id", ""),
                     "smart_status": smart_resp.status_code,
                     "smart_response": smart_data
                 }
 
                 if smart_data.get("successful"):
                     MemberSyncSuccess.objects.create(**db_data)
+                    success += 1
                 else:
                     MemberSyncFailure.objects.create(**db_data)
+                    failed += 1
 
             except Exception as e:
-                print(f"Error processing member {m.get('member_no')}: {e}")
+                print(f"❌ Error processing member {m.get('member_no')}: {e}")
+                failed += 1
 
-        print("HAIS Corporate Members sync completed")
-        
+        print(f"✅ HAIS MEMBERS SYNC DONE → {success} success, {failed} failed")
         
 import requests
 from urllib.parse import urlencode
