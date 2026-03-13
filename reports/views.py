@@ -397,7 +397,7 @@ class ApiSyncLogListView(LogListView):
 
 # Copay Log
 class CopayLogListView(LogListView):
-    queryset = CopayLog.objects.all()
+    queryset = CopaySync.objects.all()
     serializer_class =  CopaySyncSerializer
     filterset_class = CopaySyncFilter
     search_fields = ['transaction_name']
