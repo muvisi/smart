@@ -308,10 +308,17 @@ class ApiSyncLogFilter(FilterSet):
         fields = ['api_name', 'transaction_name', 'status', 'http_code']
 
 # Copay Log
-class CopayLogFilter(FilterSet):
+# class CopayLogFilter(FilterSet):
+#     class Meta:
+#         model = CopayLog
+#         fields = ['transaction_name', 'status_code', 'status']
+# from django_filters.rest_framework import FilterSet
+from engine.models import CopaySync  # or CopayLog if not renamed
+
+class CopaySyncFilter(FilterSet):
     class Meta:
-        model = CopayLog
-        fields = ['transaction_name', 'status_code', 'status']
+        model = CopaySync
+        fields = ['transaction_name', 'status_code', 'status', 'corp_id']
 
 # ------------------------------
 # Views
@@ -391,6 +398,6 @@ class ApiSyncLogListView(LogListView):
 # Copay Log
 class CopayLogListView(LogListView):
     queryset = CopayLog.objects.all()
-    serializer_class = CopayLogSerializer
-    filterset_class = CopayLogFilter
+    serializer_class =  CopaySyncSerializer
+    filterset_class = CopaySyncFilter
     search_fields = ['transaction_name']

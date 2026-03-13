@@ -137,3 +137,54 @@ class CopayLogAdmin(admin.ModelAdmin):
     list_filter = ('status', 'source')
     search_fields = ('transaction_name', 'source')
     readonly_fields = ('created_at', 'updated_at')
+    
+    
+    from django.contrib import admin
+from .models import CopaySync
+
+
+@admin.register(CopaySync)
+class CopaySyncAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "id",
+        "transaction_name",
+        "corp_id",
+        "status",
+        "status_code",
+        "created_at",
+    )
+
+    list_filter = (
+        "status",
+        "created_at",
+        "corp_id",
+    )
+
+    search_fields = (
+        "id",
+        "corp_id",
+        "transaction_name",
+        "reference_id",
+    )
+
+    readonly_fields = (
+        "id",
+        "transaction_name",
+        "endpoint",
+        "status",
+        "status_code",
+        "request_object",
+        "response_object",
+        "corp_id",
+        "reference_id",
+        "error_message",
+        "created_at",
+        "updated_at",
+    )
+
+    ordering = ("-created_at",)
+
+    date_hierarchy = "created_at"
+
+    list_per_page = 50

@@ -70,7 +70,14 @@ class ApiSyncLogSerializer(serializers.ModelSerializer):
         model = ApiSyncLog
         fields = '__all__'
 
-class CopayLogSerializer(serializers.ModelSerializer):
+# class CopayLogSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = CopayLog
+#         fields = '__all__'
+# from rest_framework import serializers
+from engine.models import CopaySync
+
+class CopaySyncSerializer(serializers.ModelSerializer):
     class Meta:
-        model = CopayLog
+        model = CopaySync
         fields = '__all__'

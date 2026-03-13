@@ -256,3 +256,47 @@ class CopayLog(models.Model):
 
     def __str__(self):
         return f"{self.transaction_name} | {self.get_status_display()} | {self.created_at}"
+    
+    
+    import uuid
+from django.db import models
+
+
+class CopaySync(models.Model):
+
+    STATUS_CHOICES = (
+        (1, "SUCCESS"),
+        (2, "FAILED"),
+        (3, "PENDING"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    transaction_name = models.CharField(max_length=200)
+    endpoint = models.CharField(max_length=500, blank=True, null=True)
+
+    status = models.IntegerField(choices=STATUS_CHOICES, default=3)
+    status_code = models.IntegerField(blank=True, null=True)
+
+    request_object = models.JSONField(blank=True, null=True)
+    response_object = models.JSONField(blank=True, null=True)
+
+    corp_id = models.CharField(max_length=50, blank=True, null=True)
+    reference_id = models.CharField(max_length=100, blank=True, null=True)
+
+    error_message = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "copay_sync_logs"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["corp_id"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.id} - {self.transaction_name} - {self.status}"
