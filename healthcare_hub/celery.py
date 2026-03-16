@@ -5,7 +5,7 @@ from datetime import timedelta
 
 # --- Set Django settings module ---
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "healthcare_hub.settings")
-
+from celery.schedules import crontab
 # --- Create Celery app ---
 app = Celery("healthcare_hub")
 app.config_from_object("django.conf:settings", namespace="CELERY")
@@ -65,13 +65,10 @@ app.conf.beat_schedule = {
         'schedule': timedelta(minutes=1), 
     },
      
-   
-    'daily-allocation': {
-        'task': 'app.tasks.daily_allocation_task',
-        'schedule': timedelta(hour=17, minute=0, day_of_week='1-6'),
-        # 'schedule': timedelta(minutes=1),
-    },
-
+   'daily-allocation': {
+    'task': 'app.tasks.daily_allocation_task',
+    'schedule': crontab(hour=17, minute=0, day_of_week='1-6'),
+},
     
 }
 
