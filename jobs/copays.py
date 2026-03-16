@@ -216,6 +216,8 @@
 #                 failed += 1
 
 #         print(f"✅ Sync complete: {success} succeeded, {failed} failed")
+
+
 import requests
 from urllib.parse import urlencode
 from django.conf import settings

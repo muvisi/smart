@@ -8,12 +8,8 @@ urlpatterns = [
     path('api/account/', include('users.urls')),  # Users CRUD APIs
     path("api/trigger/", include("trigger.urls")),
     path('api/report/', include('reports.urls')),  # 👈 register report app here
+    path('api/commisions/', include('commisions.urls')),  # 👈 register report app here
 
-
-
-    # path('smart/', include('smart.urls')),
-    # path('smart-engine/', include('engine.urls')),
-    # path('commissions/', include('commission.urls')),
 
 
 

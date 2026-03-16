@@ -64,6 +64,14 @@ app.conf.beat_schedule = {
         'task': 'jobs.tasks.sync_schemes_job',  
         'schedule': timedelta(minutes=1), 
     },
+     
+   
+    'daily-allocation': {
+        'task': 'app.tasks.daily_allocation_task',
+        'schedule': timedelta(hour=17, minute=0, day_of_week='1-6'),
+        # 'schedule': timedelta(minutes=1),
+    },
+
     
 }
 
