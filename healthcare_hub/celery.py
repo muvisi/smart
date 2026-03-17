@@ -48,10 +48,10 @@ app.conf.beat_schedule = {
     "task": "jobs.tasks.sync_retail_categories_job",
     "schedule": timedelta(minutes=1),
 },
-    "sync_provider_restrictions_every_2_min": {
-    "task": "jobs.tasks.sync_provider_restrictions_job",
-    "schedule": timedelta(minutes=2),
-},
+#     "sync_provider_restrictions_every_2_min": {
+#     "task": "jobs.tasks.sync_provider_restrictions_job",
+#     "schedule": timedelta(minutes=2),
+# },
     # "sync_waiting_periods_every_2_min": {
     #     "task": "jobs.tasks.sync_waiting_periods_job",
     #     "schedule": timedelta(minutes=2),

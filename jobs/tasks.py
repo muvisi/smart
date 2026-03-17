@@ -50,16 +50,16 @@ def sync_retail_categories_job():
     service.run()
     
     
-@shared_task
-def sync_provider_restrictions_job():
-    service = SyncProviderRestrictionsService()
-    service.run()
+# @shared_task
+# def sync_provider_restrictions_job():
+#     service = SyncProviderRestrictionsService()
+#     service.run()
     
     
-@shared_task
-def sync_waiting_periods_job():
-    service=SyncHaisRetailWaitingPeriodsService()
-    service.run()
+# @shared_task
+# def sync_waiting_periods_job():
+#     service=SyncHaisRetailWaitingPeriodsService()
+#     service.run()
 
     
 @shared_task
@@ -71,7 +71,7 @@ def sync_schemes_job():
     
         
     
-@shared_task
-def sync_hais_copays_job():
-    service = SyncHaisCopaysService()
-    service.run()
+# @shared_task
+# def sync_hais_copays_job():
+#     service = SyncHaisCopaysService()
+#     service.run()
