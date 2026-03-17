@@ -10,11 +10,11 @@ from jobs.waiting_periods import SyncHaisRetailWaitingPeriodsService
 
 
 
-@shared_task(bind=True)
-def sync_benefits_job(self):
-    service = SyncHaisBenefitsService()
-    service.run()
-    print("HAIS corporate benefits sync job executed")
+# @shared_task(bind=True)
+# def sync_benefits_job(self):
+#     service = SyncHaisBenefitsService()
+#     service.run()
+#     print("HAIS corporate benefits sync job executed")
     
 
 
@@ -26,28 +26,28 @@ def sync_retail_benefits_job(self):
     
     
 
-@shared_task(bind=True)
-def sync_members_job(self):
-    service = SyncHaisMembersService()
-    service.run()
-    print("HAIS corporate members sync job executed")
+# @shared_task(bind=True)
+# def sync_members_job(self):
+#     service = SyncHaisMembersService()
+#     service.run()
+#     print("HAIS corporate members sync job executed")
     
 
-@shared_task
-def sync_retail_members_job():
-    service = SyncRetailMembersService()
-    service.run()
-    print("HAIS retail members sync job executed")
+# @shared_task
+# def sync_retail_members_job():
+#     service = SyncRetailMembersService()
+#     service.run()
+#     print("HAIS retail members sync job executed")
     
-@shared_task
-def sync_categories_job():
-    service = SyncHaisCategoriesService()
-    service.run()
+# @shared_task
+# def sync_categories_job():
+#     service = SyncHaisCategoriesService()
+#     service.run()
     
-@shared_task
-def sync_retail_categories_job():
-    service = SyncRetailCategoriesService()
-    service.run()
+# @shared_task
+# def sync_retail_categories_job():
+#     service = SyncRetailCategoriesService()
+#     service.run()
     
     
 # @shared_task
@@ -62,11 +62,11 @@ def sync_retail_categories_job():
 #     service.run()
 
     
-@shared_task
-def sync_schemes_job():
+# @shared_task
+# def sync_schemes_job():
    
-    service = SyncSchemesService()
-    service.run()
+#     service = SyncSchemesService()
+#     service.run()
     
     
         
