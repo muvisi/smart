@@ -1,132 +1,185 @@
-import requests
+# services/sync_schemes_db_full.py
+
+import json
 from urllib.parse import urlencode
+from datetime import datetime
 from django.conf import settings
+from django.db import connections
 from engine.models import ApiSyncLog
+import requests
 
-class SyncSchemesService:
-    def get_hais_token(self):
+
+class SyncHaisSchemesService:
+
+    # ---------------------------------
+    # ✅ FETCH SCHEMES FROM MSSQL
+    # ---------------------------------
+    def get_schemes(self):
+        schemes = []
+
+        with connections['external_mssql'].cursor() as cursor:
+            # ✅ CHECK DB CONNECTION (SEPARATE QUERY)
+            cursor.execute("SELECT DB_NAME()")
+            print("Connected DB:", cursor.fetchone())
+
+            # ✅ OPTIONAL DEBUG COUNT
+            cursor.execute("SELECT COUNT(*) FROM dbo.smart_schemes")
+            print("TOTAL ROWS:", cursor.fetchone())
+
+            # ✅ MAIN QUERY
+            cursor.execute("SELECT TOP 10 * FROM dbo.smart_schemes")
+
+            columns = [col[0] for col in cursor.description]
+            rows = cursor.fetchall()
+
+            print("RAW ROW COUNT:", len(rows))
+
+            for row in rows:
+                row_dict = dict(zip(columns, row))
+
+                # ✅ MAKE JSON SAFE
+                for k, v in row_dict.items():
+                    if isinstance(v, datetime):
+                        row_dict[k] = v.isoformat()
+                    elif v is None:
+                        row_dict[k] = None
+                    elif not isinstance(v, (int, float, bool)):
+                        row_dict[k] = str(v)
+
+                schemes.append(row_dict)
+
+        print("FINAL SCHEMES SAMPLE:", schemes[:3])
+        return schemes
+
+    # ---------------------------------
+    # ✅ SEND TO SMART
+    # ---------------------------------
+    def post_to_smart(self, scheme, smart_token):
         payload = {
-            "name": "generateToken",
-            "param": {
-                "consumer_key": settings.HAIS_API_CONSUMER_KEY,
-                "consumer_secret": settings.HAIS_API_CONSUMER_SECRET
-            }
+            "companyName": scheme.get("scheme_name"),
+            "clnPolCode": scheme.get("corp_id"),
+            "startDate": scheme.get("start_date"),
+            "endDate": scheme.get("end_date"),
+            "polTypeId": scheme.get("scheme_type_id"),
+            "userId": scheme.get("user_id"),
+            "anniv": scheme.get("anniv"),
+            "policyCurrencyId": getattr(settings, "POLICY_CURRENCY_ID", "KES"),
+            "countryCode": getattr(settings, "COUNTRY_CODE", "KE"),
+            "customerid": settings.SMART_CUSTOMER_ID
         }
+
+        url = f"{settings.SMART_API_BASE_URL}schemes?{urlencode(payload)}"
+
+        print("\n💡 SMART PAYLOAD:\n", json.dumps(payload, indent=2))
+
         try:
             resp = requests.post(
-                settings.HAIS_API_BASE_URL,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=30
+                url,
+                headers={"Authorization": f"Bearer {smart_token}"},
+                verify=False,
+                timeout=60
             )
-            data = resp.json()
-            return data.get("response", {}).get("result", {}).get("accessToken")
-        except Exception as e:
-            print(f"❌ HAIS Auth Error: {e}")
-            return None
 
-    def get_smart_token(self):
-        payload = {
-            "client_id": settings.SMART_CLIENT_ID,
-            "client_secret": settings.SMART_CLIENT_SECRET,
-            "grant_type": settings.SMART_GRANT_TYPE
-        }
+            try:
+                data = resp.json()
+            except:
+                data = {"raw_response": resp.text}
+
+            status = 1 if data.get("successful") else 2
+            return status, data
+
+        except Exception as e:
+            print(f"❌ SMART ERROR: {e}")
+            return 2, {"error": str(e)}
+
+    # ---------------------------------
+    # ✅ LOG
+    # ---------------------------------
+    def log_api_request(self, scheme, response, status_code):
         try:
+            ApiSyncLog.objects.create(
+                api_name="SyncDBToSmart",
+                transaction_name=f"{scheme.get('scheme_type')} Scheme: {scheme.get('scheme_name')}",
+                request_object=scheme,
+                response_object=response,
+                status=status_code,
+                http_code=status_code
+            )
+        except Exception as e:
+            print(f"❌ Logging error: {e}")
+
+    # ---------------------------------
+    # ✅ UPDATE SYNC STATUS IN DB
+    # ---------------------------------
+    def mark_scheme_synced(self, scheme, status):
+        with connections['external_mssql'].cursor() as cursor:
+            try:
+                cursor.execute(
+                    """
+                    UPDATE dbo.corporate
+                    SET sync=%s
+                    WHERE corp_id=%s 
+                    """,
+                    [status, scheme.get("corp_id")]
+                )
+            except Exception as e:
+                print(f"❌ DB update error for {scheme.get('corp_id')}: {e}")
+
+    # ---------------------------------
+    # ✅ GET SMART TOKEN
+    # ---------------------------------
+    def get_smart_token(self):
+        try:
+            payload = {
+                "client_id": settings.SMART_CLIENT_ID,
+                "client_secret": settings.SMART_CLIENT_SECRET,
+                "grant_type": settings.SMART_GRANT_TYPE
+            }
+
             resp = requests.post(
-                f"{settings.SMART_ACCESS_TOKEN}{urlencode(payload)}",
+                settings.SMART_ACCESS_TOKEN,
+                data=payload,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 verify=False,
                 timeout=30
             )
+
             return resp.json().get("access_token")
+
         except Exception as e:
             print(f"❌ SMART Auth Error: {e}")
             return None
 
+    # ---------------------------------
+    # ✅ MAIN RUNNER
+    # ---------------------------------
     def run(self):
-        print("🔄 SCHEME SYNC STARTED")
-        hais_token = self.get_hais_token()
+        print("🔄 DB SCHEMES SYNC STARTED")
+
         smart_token = self.get_smart_token()
 
-        if not hais_token or not smart_token:
-            print("❌ Authentication failed. Skipping sync.")
+        if not smart_token:
+            print("❌ Failed to get SMART token")
             return
 
-        try:
-            schemes_resp = requests.post(
-                settings.HAIS_API_BASE_URL,
-                json={"name": "smartSchemes", "param": {}},
-                headers={"Authorization": f"Bearer {hais_token}", "Content-Type": "application/json"},
-                timeout=30
-            ).json()
-        except Exception as e:
-            print(f"❌ Failed to fetch schemes from HAIS: {e}")
+        schemes = self.get_schemes()
+
+        if not schemes:
+            print("❌ No schemes retrieved from DB")
             return
 
-        if schemes_resp.get("response", {}).get("status") != 200:
-            print(f"❌ HAIS returned error status: {schemes_resp}")
-            return
+        success, failed = 0, 0
 
-        schemes = schemes_resp["response"]["result"]
+        for scheme in schemes:
+            status, response = self.post_to_smart(scheme, smart_token)
 
-        for s in schemes:
-            url_data = {
-                "companyName": s.get("scheme_name"),
-                "clnPolCode": s.get("corp_id"),
-                "startDate": s.get("start_date"),
-                "endDate": s.get("end_date"),
-                "polTypeId": s.get("scheme_type_id"),
-                "userId": s.get("user_id"),
-                "anniv": s.get("anniv"),
-                "policyCurrencyId": settings.POLICY_CURRENCY_ID,
-                "countryCode": settings.COUNTRY_CODE,
-                "customerid": settings.SMART_CUSTOMER_ID
-            }
-            smart_url = f"{settings.SMART_API_BASE_URL}schemes?{urlencode(url_data)}"
+            self.log_api_request(scheme, response, status)
+            self.mark_scheme_synced(scheme, status)
+            print("scheme pposted",scheme,status)
 
-            try:
-                smart_resp = requests.post(
-                    smart_url,
-                    headers={"Authorization": f"Bearer {smart_token}"},
-                    verify=False,
-                    timeout=30
-                )
-                smart_data = smart_resp.json()
-                smart_httpcode = smart_resp.status_code
-            except Exception as e:
-                smart_data = {"error": str(e)}
-                smart_httpcode = 500
+            if status == 1:
+                success += 1
+            else:
+                failed += 1
 
-            is_successful = str(smart_data.get("successful")).lower() == "true"
-            sync_status = 1 if is_successful else 2
-
-            # Update HAIS
-            update_req = {
-                "name": "updateCorporateScheme" if s.get("scheme_type") == "CORPORATE" else "updateRetailScheme",
-                "param": {
-                    "corp_id": s.get("corp_id"),
-                    "anniv": s.get("anniv") if s.get("scheme_type") == "CORPORATE" else None,
-                    "status": sync_status
-                }
-            }
-            try:
-                requests.post(
-                    settings.HAIS_API_BASE_URL,
-                    json=update_req,
-                    headers={"Authorization": f"Bearer {hais_token}", "Content-Type": "application/json"},
-                    timeout=30
-                )
-            except Exception:
-                pass
-
-            # Fixed field names: request_object and response_object
-            ApiSyncLog.objects.create(
-                api_name="SyncHaisToSmart",
-                transaction_name=f"{s.get('scheme_type').capitalize()} Scheme: {s.get('scheme_name')}",
-                request_object=s,
-                response_object=smart_data,
-                status=sync_status,
-                http_code=smart_httpcode
-            )
-
-        print("✅ HAIS Schemes sync job executed successfully")
+        print(f"✅ DONE → Success: {success}, Failed: {failed}")

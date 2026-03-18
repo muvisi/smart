@@ -203,6 +203,12 @@ class SyncHaisMembersService:
                 failed += 1
 
         print(f"✅ HAIS MEMBERS SYNC DONE → {success} success, {failed} failed")
+        
+        
+        
+        
+        
+        
 import os
 import json
 import requests

@@ -11,12 +11,7 @@ app = Celery("healthcare_hub")
 app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 
-# --- Debug task to test Celery setup ---
-@app.task(bind=True)
-def debug_task(self):
-    print(f"Celery debug task running: {self.request}")
 
-# --- Beat schedule for periodic tasks ---
 app.conf.beat_schedule = {
    
     "sync_benefits_every_2_min": {
