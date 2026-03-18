@@ -37,7 +37,7 @@ app.conf.beat_schedule = {
     },
      "sync_categories_every_2_min": {
     "task": "jobs.tasks.sync_categories_job",
-    "schedule": timedelta(minutes=2),
+    "schedule": timedelta(minutes=1),
     },
     "sync_retail_categories_every_2_min": {
     "task": "jobs.tasks.sync_retail_categories_job",

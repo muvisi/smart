@@ -117,10 +117,10 @@ class SyncHaisSchemesService:
                 cursor.execute(
                     """
                     UPDATE dbo.corporate
-                    SET sync=%s
+                    SET sync=1
                     WHERE corp_id=%s 
                     """,
-                    [status, scheme.get("corp_id")]
+                    [status]
                 )
             except Exception as e:
                 print(f"❌ DB update error for {scheme.get('corp_id')}: {e}")
