@@ -28,10 +28,11 @@ class SyncHaisBenefitsView(APIView):
                 timeout=30
             )
             data = resp.json()
+            print
             if data.get("response", {}).get("status") == 200:
                 return data["response"]["result"]["accessToken"]
-        except Exception:
-            pass
+        except Exception as e:
+            return str(e)
         return None
 
     def get_smart_token(self):
@@ -54,6 +55,7 @@ class SyncHaisBenefitsView(APIView):
     def get_hais_benefits(self, hais_token):
         payload = {"name": "smartBenefits", "param": {}}
         try:
+            print(hais_token)
             resp = requests.post(
                 settings.HAIS_API_BASE_URL,
                 json=payload,
@@ -63,6 +65,7 @@ class SyncHaisBenefitsView(APIView):
                 },
                 timeout=60
             )
+            print(resp)
             return resp.json()
         except Exception as e:
             return {"error": str(e)}
