@@ -139,15 +139,17 @@ class SmartCategorySyncService:
         
         
         
-        
 import json
 import requests
 import logging
+import urllib3
 from urllib.parse import urlencode
 from django.db import connections, transaction, DatabaseError
 from django.conf import settings
 from engine.models import HaisCategorySyncSuccess, HaisCategorySyncFailure
 
+# Suppress SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
 
 class SmartCategorySyncTask:
@@ -157,40 +159,43 @@ class SmartCategorySyncTask:
         self.smart_token = None
 
     def _get_smart_token(self):
-        """Authenticates with SMART API."""
-        auth_params = {
-            'client_id': settings.SMART_CLIENT_ID,
-            'client_secret': settings.SMART_CLIENT_SECRET,
-            'grant_type': settings.SMART_GRANT_TYPE
-        }
+        """Authenticates with SMART API using Form-data logic."""
         try:
-            url = f"{settings.SMART_ACCESS_TOKEN}{urlencode(auth_params)}"
-            res = requests.post(url, verify=False, timeout=15)
-            res.raise_for_status()
-            return res.json().get('access_token')
+            auth_payload = {
+                "client_id": settings.SMART_CLIENT_ID,
+                "client_secret": settings.SMART_CLIENT_SECRET,
+                "grant_type": settings.SMART_GRANT_TYPE
+            }
+            resp = requests.post(
+                settings.SMART_ACCESS_TOKEN,
+                data=auth_payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                verify=False,
+                timeout=30
+            )
+            return resp.json().get("access_token")
         except Exception as e:
-            logger.error(f"SMART Category Auth Failure: {str(e)}")
+            print(f"❌ SMART Auth Error: {e}")
             return None
 
     def run_sync(self):
-        """Task entry point: Syncs Categories for both Retail and Corporate."""
+        print("\n🏢 CORPORATE CATEGORY SYNC STARTED")
         stats = {"success": 0, "failed": 0, "total": 0}
         
         try:
             with connections[self.mssql_alias].cursor() as cursor:
-                # 1. Fetch data from the new category view
+                # Fetching corporate records
                 cursor.execute("SELECT TOP 50 * FROM dbo.smart_categories_new")
                 columns = [col[0] for col in cursor.description]
                 rows = cursor.fetchall()
 
                 if not rows:
-                    return {"status": "skipped", "message": "No categories pending."}
+                    print(">>> SYNC: No pending corporate categories.")
+                    return {"status": "skipped", "message": "No records."}
 
-                # 2. JSON-compliant data mapping
                 categories = [dict(zip(columns, row)) for row in rows]
                 stats["total"] = len(categories)
 
-                # 3. Delayed Authentication
                 self.smart_token = self._get_smart_token()
                 if not self.smart_token:
                     return {"status": "error", "message": "SMART Auth failed."}
@@ -201,78 +206,88 @@ class SmartCategorySyncTask:
                     else:
                         stats["failed"] += 1
 
+            print(f"✅ DONE → Success: {stats['success']}, Failed: {stats['failed']}\n")
             return {"status": "success", "stats": stats}
 
         except DatabaseError as e:
-            logger.error(f"MSSQL connection failed: {str(e)}")
-            return {"status": "error", "message": "Database connection failed."}
+            print(f"❌ MSSQL connection failed: {str(e)}")
+            return {"status": "error", "message": "DB connection failed."}
 
     def _process_record(self, mssql_cursor, val):
-        """Processes a single category record with JSON payload."""
+        """Processes a single Corporate category."""
         
-        # Determine if Retail or Corporate
-        is_retail = str(val.get('scheme_type', '')).upper() != 'CORPORATE'
         cln_cat_code = f"{val.get('category_name')}-{val.get('anniv')}"
         
-        # 1. Prepare JSON Payload
+        # 1. Prepare Payload (All to String)
         smart_payload = {
-            'catDesc': cln_cat_code,
-            'clnPolCode': str(val.get('corp_id')),
-            'userId': val.get('user_id'),
-            'clnCatCode': cln_cat_code,
+            'catDesc': str(cln_cat_code),
+            'clnPolCode': str(val.get('corp_id', "")),
+            'userId': str(val.get('user_id', "") or "SYSTEM"),
+            'clnCatCode': str(cln_cat_code),
             'country': "KE",
-            'customerid': settings.SMART_CUSTOMER_ID
+            'customerid': str(settings.SMART_CUSTOMER_ID)
         }
 
-        # 2. API Call (JSON strict)
+        # 2. Construct URL with Query Params
+        encoded_params = urlencode(smart_payload)
+        api_url = f"{settings.SMART_API_BASE_URL}benefitCategories?{encoded_params}"
+
         res_data = {}
         status_code = 500
         is_ok = False
         
         try:
-            api_url = f"{settings.SMART_API_BASE_URL}benefitCategories"
+            # 3. API Call
             res = requests.post(
                 api_url, 
-                json=smart_payload, # Sends data as JSON application/json
                 headers={"Authorization": f"Bearer {self.smart_token}"}, 
                 verify=False, 
                 timeout=25
             )
             status_code = res.status_code
-            res_data = res.json()
+            
+            try:
+                res_data = res.json()
+            except:
+                res_data = {"raw_response": res.text}
+                
             is_ok = str(res_data.get('successful')).lower() == 'true'
+            
+            if is_ok:
+                print(f"✅ Success: {cln_cat_code}")
+            else:
+                print(f"❌ Rejected: {cln_cat_code} - {res_data.get('status_msg')}")
+
         except Exception as e:
+            print(f"!!! API Error for {cln_cat_code}: {e}")
             res_data = {"error": "API communication failure", "details": str(e)}
 
-        # 3. Atomic DB Update & Audit Log
+        # 4. Atomic Update & Log (Strictly matching your provided Models)
         try:
             with transaction.atomic(using=self.audit_db):
                 sync_status = 2 if is_ok else 4
 
-                # Update MSSQL Table (Branching logic for Retail/Corporate)
-                table_name = "retail_groups" if is_retail else "corp_groups"
-                update_query = f"""
-                    UPDATE {table_name} 
+                # Update MSSQL
+                mssql_cursor.execute("""
+                    UPDATE dbo.corp_groups 
                     SET sync = %s 
                     WHERE corp_id = %s AND anniv = %s AND category = %s
-                """
-                mssql_cursor.execute(update_query, [
+                """, [
                     sync_status, 
                     val.get('corp_id'), 
                     val.get('anniv'), 
                     val.get('category_name')
                 ])
 
-                # Prepare Audit record (Supporting retail_id/corp_id)
+                # Map fields STRICTLY to your HaisCategorySyncSuccess/Failure models
                 audit_fields = {
-                    "corp_id": val.get('corp_id') if not is_retail else None,
-                    "retail_id": val.get('corp_id') if is_retail else None,
-                    "category_name": val.get('category_name'),
-                    "request_object": smart_payload, # Logged as JSON
-                    "anniv": val.get('anniv'),
-                    "user_id": val.get('user_id'),
-                    "status_code": status_code,
-                    "smart_response": res_data
+                    "corp_id": str(val.get('corp_id')),
+                    "category_name": str(val.get('category_name')),
+                    "request_object": smart_payload, # JSONField
+                    "anniv": str(val.get('anniv')),
+                    "user_id": str(val.get('user_id') or "SYSTEM"),
+                    "status_code": int(status_code), # IntegerField
+                    "smart_response": res_data # JSONField
                 }
 
                 if is_ok:
@@ -282,5 +297,5 @@ class SmartCategorySyncTask:
 
             return is_ok
         except Exception as e:
-            logger.critical(f"Integrity failure for Category {cln_cat_code}: {str(e)}")
+            print(f"❌ PostgreSQL Logging Failure for {cln_cat_code}: {e}")
             return False

@@ -125,10 +125,7 @@ def sync_retail_benefits_task(hais_token=None):
     
     # Optional: If token isn't passed, you might want to fetch a fresh one here
     # or rely on the service to handle its own specific auth if needed.
-    if not hais_token:
-        logger.warning("No HAIS token provided to benefit sync task.")
-        return {"status": "error", "message": "Missing authentication token."}
-
+    
     try:
         service = SmartRetailBenefitSyncService()
         result = service.run_benefit_sync(hais_token)

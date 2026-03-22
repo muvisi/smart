@@ -153,56 +153,62 @@ class SmartBenefitSyncService:
         except Exception as e:
             logger.critical(f"Atomic Rollback for Benefit {val.get('benefit_id')}: {str(e)}")
             return False
-        
 import json
 import requests
 import logging
+import urllib3
 from urllib.parse import urlencode
 from django.db import connections, transaction, DatabaseError
 from django.conf import settings
 from engine.models import BenefitSyncSuccess, BenefitSyncFailure
 
+# Suppress SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
 
 class SmartBenefitSyncService:
     def __init__(self):
         self.mssql_alias = getattr(settings, 'EXTERNAL_MSSQL_ALIAS', 'external_mssql')
-        self.audit_db = 'default'
+        self.audit_db = 'default'  # PostgreSQL
         self.smart_token = None
 
     def _get_smart_token(self):
-        """Authenticates with SMART API with strict timeout."""
-        params = {
-            'client_id': settings.SMART_CLIENT_ID,
-            'client_secret': settings.SMART_CLIENT_SECRET,
-            'grant_type': settings.SMART_GRANT_TYPE
-        }
+        """Authenticates with SMART API using Form-data logic."""
         try:
-            url = f"{settings.SMART_ACCESS_TOKEN}{urlencode(params)}"
-            # Strict 15s timeout for auth
-            res = requests.post(url, verify=False, timeout=15)
-            res.raise_for_status()
-            return res.json().get('access_token')
+            auth_payload = {
+                "client_id": settings.SMART_CLIENT_ID,
+                "client_secret": settings.SMART_CLIENT_SECRET,
+                "grant_type": settings.SMART_GRANT_TYPE
+            }
+            resp = requests.post(
+                settings.SMART_ACCESS_TOKEN,
+                data=auth_payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                verify=False,
+                timeout=30
+            )
+            return resp.json().get("access_token")
         except Exception as e:
-            logger.error(f"SMART Benefit Auth Failure: {str(e)}")
+            print(f"❌ SMART Benefit Auth Error: {e}")
             return None
 
     def run_benefit_sync(self):
-        """Syncs Benefits (Retail/Corp) from MSSQL to SMART."""
+        """Syncs Benefits (Retail/Corp) via URL Parameters."""
+        print("\n💎 BENEFIT SYNC STARTED")
         sync_stats = {"success": 0, "failed": 0, "total": 0}
         
         try:
             with connections[self.mssql_alias].cursor() as mssql_cursor:
-                # 1. Fetching data in JSON-like structure
+                # 1. Fetching pending benefits
                 query = "SELECT * FROM dbo.smart_bens WHERE synced IS NULL"
                 mssql_cursor.execute(query)
                 columns = [col[0] for col in mssql_cursor.description]
                 rows = mssql_cursor.fetchall()
 
                 if not rows:
+                    print(">>> SYNC: No benefits found in dbo.smart_bens")
                     return {"status": "success", "message": "No benefits to sync."}
 
-                # Convert to List of Dicts (JSON handle)
                 benefits = [dict(zip(columns, row)) for row in rows]
                 sync_stats["total"] = len(benefits)
                 
@@ -216,66 +222,83 @@ class SmartBenefitSyncService:
                     else:
                         sync_stats["failed"] += 1
 
+            print(f"✅ BENEFIT DONE → Success: {sync_stats['success']}, Failed: {sync_stats['failed']}\n")
             return {"status": "success", "stats": sync_stats}
 
         except DatabaseError as e:
-            logger.error(f"Benefit Sync Database Error: {str(e)}")
+            print(f"❌ Benefit Sync Database Error: {str(e)}")
             return {"status": "error", "message": "External MSSQL connection failed."}
 
     def _process_benefit(self, mssql_cursor, val):
-        """Handles JSON Transformation, API Call with Timeouts, and Audit."""
-        # 1. Transformation Logic
+        """Handles URL Transformation, API Call, and Audit."""
         ben_linked = str(val.get('sub_limit_of'))
         tq_code = "-" if ben_linked == "0" else ben_linked
         is_retail = str(val.get('scheme_type', '')).upper() != 'CORPORATE'
+        cat_code = f"{val.get('category_name')}-{val.get('anniv')}"
 
+        # 1. Prepare Payload (Force all values to String for URL encoding)
         smart_payload = {
-            'benefitDesc': val.get('benefit_name'),
-            'policyNumber': str(val.get('policy_no')),
-            'benTypeId': val.get('benefit_sharing'),
-            'subLimitAmt': float(val.get('limit', 0.0)),
-            'serviceType': val.get('benefit_class'),
-            'memAssignedBenefit': val.get('member_assigned_benefit'),
-            'clnPolCode': str(val.get('corp_id')),
-            'catCode': f"{val.get('category_name')}-{val.get('anniv')}",
-            'clnBenCode': val.get('benefit_id'),
-            'benTypDesc': val.get('benefit_sharing_descr'),
-            'benLinked2Tqcode': tq_code,
-            'userId': val.get('user_id'),
+            'benefitDesc': str(val.get('benefit_name', "")),
+            'policyNumber': str(val.get('policy_no', "")),
+            'benTypeId': str(val.get('benefit_sharing', "")),
+            'subLimitAmt': str(val.get('limit', "0.0")),
+            'serviceType': str(val.get('benefit_class', "")),
+            'memAssignedBenefit': str(val.get('member_assigned_benefit', "")),
+            'clnPolCode': str(val.get('corp_id', "")),
+            'catCode': str(cat_code),
+            'clnBenCode': str(val.get('benefit_id', "")),
+            'benTypDesc': str(val.get('benefit_sharing_descr', "")),
+            'benLinked2Tqcode': str(tq_code),
+            'userId': str(val.get('user_id', "") or "SYSTEM"),
             'countrycode': "KE",
-            'customerid': settings.SMART_CUSTOMER_ID
+            'customerid': str(settings.SMART_CUSTOMER_ID)
         }
 
-        # 2. API Call (Strict 30s timeout)
+        # 2. Construct URL with Query Params
+        encoded_params = urlencode(smart_payload)
+        api_url = f"{settings.SMART_API_BASE_URL}benefits?{encoded_params}"
+
+        print(f"---> DISPATCHING BENEFIT: {val.get('benefit_id')} for Cat: {cat_code}")
+
         res_data = {}
         status_code = 500
+        is_ok = False
+        
         try:
-            api_url = f"{settings.SMART_API_BASE_URL}benefits"
+            # 3. API Call (Data in URL)
             res = requests.post(
                 api_url, 
-                json=smart_payload, # Proper JSON body handling
                 headers={"Authorization": f"Bearer {self.smart_token}"}, 
                 verify=False, 
-                timeout=30 
+                timeout=45 
             )
             status_code = res.status_code
-            res_data = res.json()
+            
+            try:
+                res_data = res.json()
+            except:
+                res_data = {"raw_response": res.text}
+                
             is_ok = str(res_data.get('successful')).lower() == 'true'
-        except requests.exceptions.Timeout:
-            is_ok = False
-            res_data = {"error": "Timeout", "details": "The SMART API took too long to respond."}
-        except Exception as e:
-            is_ok = False
-            res_data = {"error": "API Failure", "details": str(e)}
+            
+            if is_ok:
+                print(f"✅ Success: Benefit {val.get('benefit_id')}")
+            else:
+                print(f"❌ Rejected: {val.get('benefit_id')} - {res_data.get('status_msg')}")
 
-        # 3. Atomic Database Update and Audit
+        except Exception as e:
+            print(f"!!! API Error for Benefit {val.get('benefit_id')}: {e}")
+            res_data = {"error": "API communication failure", "details": str(e)}
+
+        # 4. Atomic Database Update and Audit
         try:
             with transaction.atomic(using=self.audit_db):
+                # 1 = Success, 3 = Failed (as per your original logic)
                 sync_status = 1 if is_ok else 3
                 
-                # Branching logic for Retail/Corporate table
-                table_target = "retail_groups" if is_retail else "corp_groups"
+                table_target = "dbo.corp_groups" if is_retail else "dbo.corp_groups"
                 
+                # Update MSSQL Status
                 update_query = f"""
                     UPDATE {table_target} 
                     SET sync = %s 
@@ -291,15 +314,14 @@ class SmartBenefitSyncService:
 
                 # Audit Logic (PostgreSQL)
                 audit_fields = {
-                    "corp_id": val.get('corp_id') if not is_retail else None,
-                    "retail_id": val.get('corp_id') if is_retail else None,
-                    "category": val.get('category_name'),
-                    "anniv": val.get('anniv'),
-                    "benefit_id": val.get('benefit_id'),
-                    "benefit_name": val.get('benefit_name'),
-                    "policy_no": val.get('policy_no'),
+                    "corp_id": str(val.get('corp_id')),
+                    "category": str(val.get('category_name')),
+                    "anniv": str(val.get('anniv')),
+                    "benefit_id": str(val.get('benefit_id')),
+                    "benefit_name": str(val.get('benefit_name')),
+                    "policy_no": str(val.get('policy_no')),
                     "request_object": smart_payload,
-                    "smart_status": status_code,
+                    "smart_status": int(status_code),
                     "smart_response": res_data
                 }
 
@@ -310,5 +332,5 @@ class SmartBenefitSyncService:
 
             return is_ok
         except Exception as e:
-            logger.critical(f"Critical Rollback for Benefit {val.get('benefit_id')}: {str(e)}")
+            print(f"❌ Critical Audit/DB failure for Benefit {val.get('benefit_id')}: {e}")
             return False

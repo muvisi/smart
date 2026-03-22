@@ -159,131 +159,156 @@ class SmartMemberSyncService:
             logger.error(f"Database synchronization failed for {member_no}: {str(e)}")
             return False
         
-        
-        
 import json
 import requests
 import logging
+import urllib3
 from urllib.parse import urlencode
 from django.db import connections, transaction
 from django.conf import settings
 from engine.models import MemberSyncSuccess, MemberSyncFailure
 
+# Suppress SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
 
 class SmartRetailMemberSyncService:
     def __init__(self):
         self.mssql_alias = getattr(settings, 'EXTERNAL_MSSQL_ALIAS', 'external_mssql')
+        self.audit_db = 'default'
         self.smart_token = None
         self.session = requests.Session()
         self.session.verify = False 
 
     def _get_smart_token(self):
-        """Authenticates with SMART API (15s timeout)."""
-        params = {
-            'client_id': settings.SMART_CLIENT_ID,
-            'client_secret': settings.SMART_CLIENT_SECRET,
-            'grant_type': settings.SMART_GRANT_TYPE
-        }
+        """Authenticates with SMART API using Form-data logic."""
         try:
-            url = f"{settings.SMART_ACCESS_TOKEN}{urlencode(params)}"
-            res = self.session.post(url, timeout=15)
-            res.raise_for_status()
-            return res.json().get('access_token')
+            auth_payload = {
+                "client_id": settings.SMART_CLIENT_ID,
+                "client_secret": settings.SMART_CLIENT_SECRET,
+                "grant_type": settings.SMART_GRANT_TYPE
+            }
+            resp = self.session.post(
+                settings.SMART_ACCESS_TOKEN,
+                data=auth_payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=30
+            )
+            return resp.json().get("access_token")
         except Exception as e:
-            logger.error(f"SMART Auth Failure: {str(e)}")
+            print(f"❌ SMART Member Auth Error: {e}")
             return None
 
     def run_retail_member_sync(self):
-        """Fetches pending members from MSSQL and Syncs to SMART."""
+        """Fetches pending retail members and syncs via URL Parameters."""
+        print("\n👤 RETAIL MEMBER SYNC STARTED")
         sync_stats = {"success": 0, "failed": 0, "total": 0}
+        
         try:
             with connections[self.mssql_alias].cursor() as mssql_cursor:
-                # 1. Fetch TOP 25 Data as JSON-ready dicts
+                # 1. Fetch TOP 25
                 mssql_cursor.execute("SELECT TOP 25 * FROM dbo.smart_retail_members_new")
                 columns = [col[0] for col in mssql_cursor.description]
                 rows = mssql_cursor.fetchall()
 
                 if not rows:
-                    return {"status": "success", "message": "No members pending sync."}
+                    print(">>> SYNC: No retail members pending.")
+                    return {"status": "success", "message": "No members pending."}
 
-                members_json = [dict(zip(columns, r)) for r in rows]
-                sync_stats["total"] = len(members_json)
+                members = [dict(zip(columns, r)) for r in rows]
+                sync_stats["total"] = len(members)
                 
                 self.smart_token = self._get_smart_token()
                 if not self.smart_token:
                     return {"status": "error", "message": "SMART Auth failed."}
 
                 # 2. Process Sync Loop
-                for member_data in members_json:
+                for member_data in members:
                     if self._sync_single_retail_member(mssql_cursor, member_data):
                         sync_stats["success"] += 1
                     else:
                         sync_stats["failed"] += 1
 
+            print(f"✅ RETAIL MEMBER DONE → Success: {sync_stats['success']}, Failed: {sync_stats['failed']}\n")
             return {"status": "success", "stats": sync_stats}
+            
         except Exception as e:
-            logger.critical(f"Global Retail Member Sync Failure: {str(e)}")
+            print(f"!!! Global Retail Member Sync Failure: {str(e)}")
             return {"status": "error", "message": str(e)}
 
     def _sync_single_retail_member(self, mssql_cursor, val):
-        # Extract and Format Variables
-        member_no = str(val.get('member_no'))
-        family_no = str(val.get('family_no'))
-        anniv = str(val.get('anniv'))
+        # Extract and Format Strings
+        member_no = str(val.get('member_no') or "")
+        family_no = str(val.get('family_no') or "")
+        anniv = str(val.get('anniv') or "")
         cln_cat_code = f"{family_no}-{anniv}"
         
-        # Name splitting
-        name_parts = (val.get('member_name') or "").split()
+        # Name splitting logic
+        name_parts = (val.get('member_name') or "").strip().split()
         surname = name_parts[0] if len(name_parts) > 0 else ""
         second_name = name_parts[1] if len(name_parts) > 1 else ""
         third_name = name_parts[2] if len(name_parts) > 2 else ""
 
-        # Phone formatting (KE Standard)
-        phone_raw = str(val.get('mobile_no', '')).replace(" ", "")
-        mobile_phone = f"254{phone_raw[-9:]}" if phone_raw else ""
+        # Phone formatting (KE Standard 254...)
+        phone_raw = str(val.get('mobile_no', '')).replace(" ", "").replace("+", "")
+        mobile_phone = f"254{phone_raw[-9:]}" if len(phone_raw) >= 9 else ""
 
-        # Payload Construction
+        # Payload Construction (All forced to String for urlencode)
         smart_payload = {
             'familyCode': family_no,
             'membershipNumber': member_no,
             'staffNumber': member_no,
-            'surname': surname,
-            'secondName': second_name,
-            'thirdName': third_name,
+            'surname': str(surname),
+            'secondName': str(second_name),
+            'thirdName': str(third_name),
             'otherNames': "null",
             'idNumber': "",
-            'dob': val.get('dob') if val.get('dob') else "null",
-            'gender': val.get('gender') or "",
+            'dob': str(val.get('dob') or "null"),
+            'gender': str(val.get('gender') or ""),
             'nhifNumber': "",
-            'memType': val.get('memType'),
-            'schemeStartDate': val.get('start_date'),
-            'schemeEndDate': val.get('end_date'),
+            'memType': str(val.get('memType') or ""),
+            'schemeStartDate': str(val.get('start_date') or ""),
+            'schemeEndDate': str(val.get('end_date') or ""),
             'clnCatCode': cln_cat_code,
-            'clnPolCode': val.get('scheme_id'),
+            'clnPolCode': str(val.get('scheme_id', "")),
             'phone_number': mobile_phone,
-            'email_address': val.get('email') or "",
-            'userID': val.get('user_id'),
+            'email_address': str(val.get('email') or ""),
+            'userID': str(val.get('user_id') or "SYSTEM"),
             'country': "KE",
-            'customerid': settings.SMART_CUSTOMER_ID,
+            'customerid': str(settings.SMART_CUSTOMER_ID),
             'roamingCountries': "KE"
         }
 
-        # 1. API Post (100s Timeout)
+        # 1. API Post (URL Parameters)
+        res_data = {}
+        http_code = 500
+        is_ok = False
+        
         try:
             api_url = f"{settings.SMART_API_BASE_URL}members?{urlencode(smart_payload)}"
             res = self.session.post(
                 api_url, 
                 headers={"Authorization": f"Bearer {self.smart_token}"}, 
-                timeout=100
+                timeout=60
             )
-            res_data = res.json()
-            is_ok = res_data.get('successful') is True
             http_code = res.status_code
-        except Exception as e:
-            is_ok, http_code, res_data = False, 500, {"error": str(e)}
+            try:
+                res_data = res.json()
+            except:
+                res_data = {"raw_response": res.text}
+                
+            is_ok = str(res_data.get('successful', '')).lower() == 'true'
+            
+            if is_ok:
+                print(f"✅ Success: Member {member_no} ({surname})")
+            else:
+                print(f"❌ Rejected: {member_no} - {res_data.get('status_msg')}")
 
-        # 2. Atomic Coordination (Postgres Audit + MSSQL Updates)
+        except Exception as e:
+            print(f"!!! API ERROR for Member {member_no}: {e}")
+            res_data = {"error": str(e)}
+
+        # 2. Atomic Coordination
         try:
             with transaction.atomic(using='default'):
                 # Log to Postgres
@@ -298,33 +323,24 @@ class SmartRetailMemberSyncService:
                     other_names="null",
                     category=cln_cat_code,
                     anniv=anniv,
-                    corp_id=val.get('scheme_id'),
-                    smart_status=http_code,
+                    corp_id=str(val.get('scheme_id')),
+                    smart_status=int(http_code),
                     smart_response=res_data
                 )
 
-                # Retail Status Mapping (1: Success, 2: Failure)
+                # Retail Status (1: Success, 2: Failure)
                 sync_status = 1 if is_ok else 2
 
                 # Update MSSQL member_info
-                mssql_cursor.execute(
-                    "UPDATE member_info SET sync = %s WHERE member_no = %s",
-                    [sync_status, member_no]
-                )
+                mssql_cursor.execute("UPDATE dbo.member_info SET sync = %s WHERE member_no = %s", [sync_status, member_no])
 
                 # Update MSSQL member_anniversary
-                mssql_cursor.execute(
-                    "UPDATE member_anniversary SET sync = %s WHERE member_no = %s AND anniv = %s",
-                    [sync_status, member_no, anniv]
-                )
+                mssql_cursor.execute("UPDATE dbo.member_anniversary SET sync = %s WHERE member_no = %s AND anniv = %s", [sync_status, member_no, anniv])
 
                 # Update MSSQL principal_applicant
-                mssql_cursor.execute(
-                    "UPDATE principal_applicant SET sync = %s WHERE family_no = %s",
-                    [sync_status, family_no]
-                )
+                mssql_cursor.execute("UPDATE dbo.principal_applicant SET sync = %s WHERE family_no = %s", [sync_status, family_no])
 
             return is_ok
         except Exception as e:
-            logger.error(f"Atomic Rollback for Member {member_no}: {str(e)}")
+            print(f"❌ Atomic Rollback for Member {member_no}: {e}")
             return False
