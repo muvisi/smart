@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'reports',
     'commisions',
     'django_celery_beat',
+    'intergration',
     
 
 ]
