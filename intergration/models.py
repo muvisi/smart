@@ -84,3 +84,29 @@ class CopaySyncFailure(models.Model):
     class Meta:
         db_table = 'copay_sync_failure'
         verbose_name_plural = "Copay Sync Failures"
+        
+        
+        
+        
+# engine/models.py
+import uuid
+from django.db import models
+
+class MemberSyncResetLog(models.Model):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False
+    )
+    family_no = models.CharField(max_length=50)
+    anniv = models.IntegerField()
+    processed = models.BooleanField(default=False)
+    errors = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "member_sync_reset_log"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.family_no} - Anniv: {self.anniv} - Processed: {self.processed}"

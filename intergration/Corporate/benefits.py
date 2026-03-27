@@ -200,7 +200,7 @@ class SmartBenefitSyncService:
         try:
             with connections[self.mssql_alias].cursor() as mssql_cursor:
                 # 1. Fetching pending benefits
-                query = "SELECT * FROM dbo.smart_bens WHERE synced IS NULL"
+                query = "SELECT TOP 20* FROM dbo.smart_bens"
                 mssql_cursor.execute(query)
                 columns = [col[0] for col in mssql_cursor.description]
                 rows = mssql_cursor.fetchall()

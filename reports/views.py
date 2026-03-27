@@ -294,12 +294,12 @@ class BenefitSyncSuccessFilter(FilterSet):
 class MemberSyncFailureFilter(FilterSet):
     class Meta:
         model = MemberSyncFailure
-        fields = ['corp_id', 'category', 'anniv', 'smart_status']
+        fields = ['corp_id', 'category','member_no','family_no','surname', 'anniv', 'smart_status']
 
 class MemberSyncSuccessFilter(FilterSet):
     class Meta:
         model = MemberSyncSuccess
-        fields = ['corp_id', 'category', 'anniv', 'smart_status']
+        fields = ['corp_id','family_no','member_no','surname', 'category', 'anniv', 'smart_status']
 
 # API Sync Log
 class ApiSyncLogFilter(FilterSet):

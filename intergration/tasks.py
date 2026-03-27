@@ -204,6 +204,7 @@ from intergration.Retail.benefits import SmartRetailBenefitSyncService
 from intergration.Retail.categories import SmartRetailCategorySyncService
 from intergration.Retail.members import SmartRetailMemberSyncService
 from intergration.Retail.waitingperiods import SmartRetailWaitingPeriodSyncService
+from intergration.recon import SmartMemberResetService
 
 
 logger = logging.getLogger(__name__)
@@ -376,3 +377,13 @@ def run_full_smart_sync():
     workflow.apply_async()
 
     return {"status": "pipeline_started"}
+
+
+@shared_task(bind=True, name="member_reset_sync_task")
+def member_reset_sync_task(self):
+    """
+    Celery task to reset member sync flags every 5 minutes.
+    """
+    service = SmartMemberResetService()
+    stats = service.run_member_reset_sync(batch_size=25)
+    return stats
