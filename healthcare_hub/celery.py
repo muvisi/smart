@@ -21,29 +21,31 @@ app.autodiscover_tasks(['intergration']) # Add the app name explicitly
 from celery.schedules import crontab
 from datetime import timedelta
 
-app.conf.beat_schedule = {
-    'allocation-every-minute': {
-        'task': 'commisions.tasks.daily_allocation_task',
-        'schedule': crontab(minute='*'),
-    },
-}
-
 # app.conf.beat_schedule = {
+#     'allocation-every-minute': {
+#         'task': 'commisions.tasks.daily_allocation_task',
+#         'schedule': crontab(minute='*'),
+#     },
+#       'smart-sync-every-2-minutes': {
+#         'task': 'intergration.tasks.run_full_smart_sync',
+#         'schedule': timedelta(seconds=120),
+#     }
+# }
 
-    # Smart integration pipeline
-    # 'smart-sync-every-2-minutes': {
-    #     'task': 'tasks.run_full_smart_sync',
-    #     'schedule': timedelta(seconds=120),
-    # },
+app.conf.beat_schedule = {
 
-    # Commission allocation (5PM Mon-Sat)
-    # 'daily-allocation-5pm': {
-    #     'task': 'tasks.daily_allocation_task',
-    #     'schedule': crontab(hour=17, minute=0, day_of_week='1-6'),
-    # },
+    'smart-sync-every-2-minutes': {
+        'task': 'tasks.run_full_smart_sync',
+        'schedule': timedelta(seconds=120),
+    },
+
+    'daily-allocation-5pm': {
+        'task': 'tasks.daily_allocation_task',
+        'schedule': crontab(hour=17, minute=0, day_of_week='1-6'),
+    },
     
 
-# }
+}
 
 # app.conf.beat_schedule = {
     

@@ -295,3 +295,10 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = "Africa/Nairobi"
+LANGUAGE_CODE = 'en-us'
+
+TIME_ZONE = 'Africa/Nairobi'
+
+USE_I18N = True
+
+USE_TZ = True
