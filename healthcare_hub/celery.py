@@ -35,7 +35,7 @@ from datetime import timedelta
 app.conf.beat_schedule = {
 
     'smart-sync-every-2-minutes': {
-        'task': 'tasks.run_full_smart_sync',
+        'task': 'intergration.tasks.run_full_smart_sync',
         'schedule': timedelta(seconds=120),
     },
 
