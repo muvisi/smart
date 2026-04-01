@@ -206,6 +206,33 @@ class MemberSyncFailure(models.Model):
 # ------------------------------
 # API Sync Log
 # ------------------------------
+# class ApiSyncLog(models.Model):
+#     STATUS_CHOICES = (
+#         (1, "Success"),
+#         (2, "Failure"),
+#     )
+
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     api_name = models.CharField(max_length=255)  # e.g., SyncHaisToSmart
+#     transaction_name = models.CharField(max_length=255)  # e.g., Corporate Scheme
+#     request_object = models.JSONField(null=True, blank=True)
+#     response_object = models.JSONField(null=True, blank=True)
+#     status = models.IntegerField(choices=STATUS_CHOICES)
+#     http_code = models.IntegerField(null=True, blank=True)
+#     request_object = models.JSONField(null=True, blank=True)
+#     created_at = models.DateTimeField(default=timezone.now)
+
+#     class Meta:
+#         verbose_name = "schemes Api Logs"
+#         verbose_name_plural = "schemes Api Logs"
+
+#     def __str__(self):
+#         return f"{self.api_name} - {self.transaction_name} - {'Success' if self.status == 1 else 'Failure'}"
+import uuid
+from django.db import models
+from django.utils import timezone
+
+
 class ApiSyncLog(models.Model):
     STATUS_CHOICES = (
         (1, "Success"),
@@ -213,22 +240,21 @@ class ApiSyncLog(models.Model):
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    api_name = models.CharField(max_length=255)  # e.g., SyncHaisToSmart
-    transaction_name = models.CharField(max_length=255)  # e.g., Corporate Scheme
+    api_name = models.CharField(max_length=255)
+    transaction_name = models.CharField(max_length=255)
     request_object = models.JSONField(null=True, blank=True)
     response_object = models.JSONField(null=True, blank=True)
     status = models.IntegerField(choices=STATUS_CHOICES)
     http_code = models.IntegerField(null=True, blank=True)
-    request_object = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         verbose_name = "schemes Api Logs"
         verbose_name_plural = "schemes Api Logs"
+        ordering = ["-created_at"]  # Most recent first
 
     def __str__(self):
         return f"{self.api_name} - {self.transaction_name} - {'Success' if self.status == 1 else 'Failure'}"
-    
     
 from django.db import models
 from django.utils import timezone

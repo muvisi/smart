@@ -1,39 +1,39 @@
-from django.db import models
+# from django.db import models
 
-# Create your models here.
+# # Create your models here.
 
+# import uuid
+# from django.db import models
+
+# class CopaySyncSuccess(models.Model):
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     corp_id = models.CharField(max_length=50)
+#     category = models.CharField(max_length=100)
+#     benefit = models.CharField(max_length=100)
+#     provider = models.CharField(max_length=100)
+#     service = models.CharField(max_length=100)
+#     copay_amount = models.FloatField()
+#     request_object = models.JSONField()
+#     smart_status = models.IntegerField()
+#     smart_response = models.JSONField()
+#     created_at = models.DateTimeField(auto_now_add=True)
+
+# class CopaySyncFailure(models.Model):
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     corp_id = models.CharField(max_length=50)
+#     category = models.CharField(max_length=100)
+#     benefit = models.CharField(max_length=100)
+#     provider = models.CharField(max_length=100)
+#     service = models.CharField(max_length=100)
+#     copay_amount = models.FloatField()
+#     request_object = models.JSONField()
+#     smart_status = models.IntegerField()
+#     smart_response = models.JSONField()
+#     created_at = models.DateTimeField(auto_now_add=True)
+    
+    
+    
 import uuid
-from django.db import models
-
-class CopaySyncSuccess(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    corp_id = models.CharField(max_length=50)
-    category = models.CharField(max_length=100)
-    benefit = models.CharField(max_length=100)
-    provider = models.CharField(max_length=100)
-    service = models.CharField(max_length=100)
-    copay_amount = models.FloatField()
-    request_object = models.JSONField()
-    smart_status = models.IntegerField()
-    smart_response = models.JSONField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-class CopaySyncFailure(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    corp_id = models.CharField(max_length=50)
-    category = models.CharField(max_length=100)
-    benefit = models.CharField(max_length=100)
-    provider = models.CharField(max_length=100)
-    service = models.CharField(max_length=100)
-    copay_amount = models.FloatField()
-    request_object = models.JSONField()
-    smart_status = models.IntegerField()
-    smart_response = models.JSONField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    
-    
-    import uuid
 from django.db import models
 
 class CopaySyncSuccess(models.Model):
