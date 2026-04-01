@@ -16,6 +16,8 @@ app.conf.timezone = "Africa/Nairobi"
 # healthcare_hub/celery.py
 
 app.autodiscover_tasks(['intergration']) # Add the app name explicitly
+app.autodiscover_tasks(['commisions']) # Add the app name explicitly
+
 
 
 from celery.schedules import crontab
@@ -40,7 +42,7 @@ app.conf.beat_schedule = {
     },
 
     'daily-allocation-5pm': {
-        'task': 'tasks.daily_allocation_task',
+        'task': 'commisions.tasks.daily_allocation_task',
         'schedule': crontab(hour=17, minute=0, day_of_week='1-6'),
     },
     
