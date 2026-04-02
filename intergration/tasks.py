@@ -381,7 +381,7 @@ def run_full_smart_sync():
     return {"status": "pipeline_started"}
 
 
-@shared_task(bind=True, name="member_reset_sync_task")
+@shared_task(bind=True, name="tasks.member_reset_sync_task")
 def member_reset_sync_task(self):
     """
     Celery task to reset member sync flags every 5 minutes.
