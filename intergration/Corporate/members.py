@@ -482,7 +482,7 @@ class SmartMemberSyncService:
         # CATEGORY CHANGE PAYLOAD (Anniversary > 1)
         # ----------------------------------------------------
         category_payload = {
-            "membershipNumber": member_no,
+            "memberNumber": member_no,
             "clnCatCode": cln_cat_code,
             "userID": str(val.get("user_id") or "SYSTEM"),
             "customerid": str(settings.SMART_CUSTOMER_ID)
