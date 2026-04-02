@@ -351,7 +351,6 @@ class SmartCorporateMemberSyncService:
 # engine/models.py
 
 
-
 import json
 import requests
 import logging
@@ -478,16 +477,6 @@ class SmartMemberSyncService:
             "roamingCountries": "KE"
         }
 
-        # ----------------------------------------------------
-        # CATEGORY CHANGE PAYLOAD (Anniversary > 1)
-        # ----------------------------------------------------
-        category_payload = {
-            "membershipNumber": member_no,
-            "clnCatCode": cln_cat_code,
-            "userID": str(val.get("user_id") or "SYSTEM"),
-            "customerid": str(settings.SMART_CUSTOMER_ID)
-        }
-
         member_ok = False
         category_ok = True
 
@@ -514,10 +503,19 @@ class SmartMemberSyncService:
             member_ok = False
 
         # ----------------------------------------------------
-        # CATEGORY CHANGE
+        # CATEGORY CHANGE (Anniversary > 1)
         # ----------------------------------------------------
         if anniv > 1:
             try:
+                category_payload = {
+                    "membershipNumber": member_no,
+                    "clnPolCode": str(val.get("corp_id")),
+                    "country": "KE",
+                    "newGrade": cln_cat_code,
+                    "userId": str(val.get("user_id") or "SYSTEM"),
+                    "customerid": str(settings.SMART_CUSTOMER_ID)
+                }
+
                 cat_url = f"{settings.SMART_API_BASE_URL}members/categorychange?{urlencode(category_payload)}"
                 res = self.session.post(
                     cat_url,
@@ -529,7 +527,9 @@ class SmartMemberSyncService:
                     cat_res = res.json()
                 except:
                     cat_res = {"raw": res.text}
+
                 category_ok = str(cat_res.get("successful")).lower() == "true"
+
             except Exception as e:
                 cat_res = {"error": str(e)}
                 http_status = 500
