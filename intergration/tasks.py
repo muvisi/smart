@@ -215,7 +215,14 @@ logger = logging.getLogger(__name__)
 # -----------------------------
 # CORPORATE TASKS
 # -----------------------------
-
+@shared_task(name="tasks.member_reset_sync_task")
+def member_reset_sync_task(self):
+    """
+    Celery task to reset member sync flags every 5 minutes.
+    """
+    service = SmartMemberResetService()
+    stats = service.run_member_reset_sync(batch_size=25)
+    return stats
 @shared_task(name="tasks.sync_schemes_to_smart")
 def sync_schemes_task():
     logger.info("Task Started: sync_schemes_to_smart")
@@ -381,11 +388,11 @@ def run_full_smart_sync():
     return {"status": "pipeline_started"}
 
 
-@shared_task(bind=True, name="tasks.member_reset_sync_task")
-def member_reset_sync_task(self):
-    """
-    Celery task to reset member sync flags every 5 minutes.
-    """
-    service = SmartMemberResetService()
-    stats = service.run_member_reset_sync(batch_size=25)
-    return stats
+# @shared_task(name="tasks.member_reset_sync_task")
+# def member_reset_sync_task(self):
+#     """
+#     Celery task to reset member sync flags every 5 minutes.
+#     """
+#     service = SmartMemberResetService()
+#     stats = service.run_member_reset_sync(batch_size=25)
+#     return stats
