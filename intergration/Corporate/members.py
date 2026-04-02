@@ -160,6 +160,202 @@ class SmartCorporateMemberSyncService:
         except Exception as e:
             logger.critical(f"Atomic Transaction Failure for Member {val.get('member_no')}: {str(e)}")
             return False
+        
+        
+# import json
+# import requests
+# import logging
+# import urllib3
+# from urllib.parse import urlencode
+# from django.db import connections, transaction, DatabaseError
+# from django.conf import settings
+# from engine.models import MemberSyncSuccess, MemberSyncFailure
+
+# # Suppress SSL warnings
+# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# logger = logging.getLogger(__name__)
+
+# class SmartMemberSyncService:
+#     def __init__(self):
+#         self.mssql_alias = getattr(settings, 'EXTERNAL_MSSQL_ALIAS', 'external_mssql')
+#         self.audit_db = 'default' # PostgreSQL
+#         self.smart_token = None
+#         self.session = requests.Session()
+#         self.session.verify = False 
+
+#     def _get_smart_token(self):
+#         """Authenticates with SMART API using Form-data logic."""
+#         try:
+#             auth_payload = {
+#                 "client_id": settings.SMART_CLIENT_ID,
+#                 "client_secret": settings.SMART_CLIENT_SECRET,
+#                 "grant_type": settings.SMART_GRANT_TYPE
+#             }
+#             resp = self.session.post(
+#                 settings.SMART_ACCESS_TOKEN,
+#                 data=auth_payload,
+#                 headers={"Content-Type": "application/x-www-form-urlencoded"},
+#                 timeout=30
+#             )
+#             return resp.json().get("access_token")
+#         except Exception as e:
+#             print(f"❌ SMART Corp Member Auth Error: {e}")
+#             return None
+
+#     def run_member_sync(self):
+#         """Fetches pending corporate members and syncs via URL Parameters."""
+#         print("\n🏢 CORPORATE MEMBER SYNC STARTED")
+#         sync_stats = {"success": 0, "failed": 0, "total": 0}
+        
+#         try:
+#             with connections[self.mssql_alias].cursor() as mssql_cursor:
+#                 # 1. Fetch TOP 25
+#                 query = "SELECT TOP 25 * FROM dbo.smart_corp_members_new"
+#                 mssql_cursor.execute(query)
+#                 columns = [col[0] for col in mssql_cursor.description]
+#                 rows = mssql_cursor.fetchall()
+
+#                 if not rows:
+#                     print(">>> SYNC: No corporate members pending.")
+#                     return {"status": "success", "message": "No members pending."}
+
+#                 members = [dict(zip(columns, row)) for row in rows]
+#                 sync_stats["total"] = len(members)
+                
+#                 self.smart_token = self._get_smart_token()
+#                 if not self.smart_token:
+#                     return {"status": "error", "message": "SMART Auth failed."}
+
+#                 for member in members:
+#                     if self._process_member(mssql_cursor, member):
+#                         sync_stats["success"] += 1
+#                     else:
+#                         sync_stats["failed"] += 1
+
+#             print(f"✅ CORP MEMBER DONE → Success: {sync_stats['success']}, Failed: {sync_stats['failed']}\n")
+#             return {"status": "success", "stats": sync_stats}
+
+#         except DatabaseError as e:
+#             print(f"❌ Member Sync MSSQL Error: {str(e)}")
+#             return {"status": "error", "message": "External database unavailable."}
+
+#     def _process_member(self, mssql_cursor, val):
+#         """Handles Name/Phone parsing, URL-based API call, and Atomic Audit."""
+#         # 1. Data Parsing & Transformation
+#         member_no = str(val.get('member_no') or "")
+#         family_no = str(val.get('family_no') or "")
+#         anniv = str(val.get('anniv') or "")
+#         cln_cat_code = f"{val.get('category')}-{anniv}"
+
+#         # Name splitting
+#         full_name = (val.get('member_name') or "").strip().split()
+#         surname = full_name[0] if len(full_name) > 0 else ""
+#         second_name = full_name[1] if len(full_name) > 1 else ""
+#         third_name = full_name[2] if len(full_name) > 2 else ""
+
+#         # Normalize Phone to 254 Format
+#         raw_phone = str(val.get('mobile_no', '')).replace(" ", "").replace("+", "")
+#         mobile_phone = f"254{raw_phone[-9:]}" if len(raw_phone) >= 9 else ""
+
+#         # 2. Prepare Payload (All forced to String for urlencode)
+#         smart_payload = {
+#             'familyCode': family_no,
+#             'membershipNumber': member_no,
+#             'staffNumber': member_no,
+#             'surname': str(surname),
+#             'secondName': str(second_name),
+#             'thirdName': str(third_name),
+#             'otherNames': "null",
+#             'idNumber': "",
+#             'dob': str(val.get('dob') or "null"),
+#             'gender': str(val.get('gender') or ""),
+#             'nhifNumber': str(val.get('nhif_no') or ""),
+#             'memType': str(val.get('member_type') or ""),
+#             'schemeStartDate': str(val.get('start_date') or ""),
+#             'schemeEndDate': str(val.get('end_date') or ""),
+#             'clnCatCode': cln_cat_code,
+#             'clnPolCode': str(val.get('corp_id', "")),
+#             'phone_number': mobile_phone,
+#             'email_address': str(val.get('email', "")),
+#             'userID': str(val.get('user_id') or "SYSTEM"),
+#             'country': "KE",
+#             'customerid': str(settings.SMART_CUSTOMER_ID),
+#             'roamingCountries': "KE"
+#         }
+
+#         # 3. API Call (URL Parameters logic)
+#         res_data = {}
+#         status_code = 500
+#         is_ok = False
+        
+#         try:
+#             api_url = f"{settings.SMART_API_BASE_URL}members?{urlencode(smart_payload)}"
+#             res = self.session.post(
+#                 api_url, 
+#                 headers={"Authorization": f"Bearer {self.smart_token}"}, 
+#                 timeout=100 
+#             )
+#             status_code = res.status_code
+#             try:
+#                 res_data = res.json()
+#             except:
+#                 res_data = {"raw_response": res.text}
+                
+#             is_ok = str(res_data.get('successful', '')).lower() == 'true'
+            
+#             if is_ok:
+#                 print(f"✅ Success: Corp Member {member_no} ({surname})")
+#             else:
+#                 print(f"❌ Rejected: {member_no} - {res_data.get('status_msg')}")
+
+#         except Exception as e:
+#             print(f"!!! API ERROR for Corp Member {member_no}: {e}")
+#             res_data = {"error": str(e)}
+
+#         # 4. Atomic Database Update and Audit Trail
+#         try:
+#             with transaction.atomic(using=self.audit_db):
+#                 sync_status = 1 if is_ok else 2
+
+#                 # Update MSSQL Tables
+#                 mssql_cursor.execute("UPDATE dbo.member_info SET sync = %s WHERE member_no = %s", [sync_status, member_no])
+#                 mssql_cursor.execute("UPDATE dbo.member_anniversary SET sync = %s WHERE member_no = %s AND anniv = %s", [sync_status, member_no, anniv])
+
+#                 # Log to Audit Models (Postgres)
+#                 audit_data = {
+#                     "member_no": member_no,
+#                     "family_no": family_no,
+#                     "request_object": smart_payload,
+#                     "surname": surname,
+#                     "second_name": second_name,
+#                     "third_name": third_name,
+#                     "category": str(val.get('category')),
+#                     "anniv": anniv,
+#                     "corp_id": str(val.get('corp_id')),
+#                     "smart_status": int(status_code),
+#                     "smart_response": res_data
+#                 }
+
+#                 if is_ok:
+#                     MemberSyncSuccess.objects.create(**audit_data)
+#                 else:
+#                     MemberSyncFailure.objects.create(**audit_data)
+
+#             return is_ok
+#         except Exception as e:
+#             print(f"❌ Atomic Rollback for Corp Member {member_no}: {e}")
+#             return False
+
+
+
+# engine/models.py
+
+
+
+
+
+
+
 import json
 import requests
 import logging
@@ -167,179 +363,311 @@ import urllib3
 from urllib.parse import urlencode
 from django.db import connections, transaction, DatabaseError
 from django.conf import settings
-from engine.models import MemberSyncSuccess, MemberSyncFailure
+from engine.models import (
+    MemberSyncSuccess,
+    MemberSyncFailure,
+    MemberCategoryChangeLog
+)
 
-# Suppress SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 logger = logging.getLogger(__name__)
 
+
 class SmartMemberSyncService:
+
     def __init__(self):
-        self.mssql_alias = getattr(settings, 'EXTERNAL_MSSQL_ALIAS', 'external_mssql')
-        self.audit_db = 'default' # PostgreSQL
-        self.smart_token = None
+
+        self.mssql_alias = getattr(settings, "EXTERNAL_MSSQL_ALIAS", "external_mssql")
+        self.audit_db = "default"
+
         self.session = requests.Session()
-        self.session.verify = False 
+        self.session.verify = False
+
+        self.smart_token = None
+
+
+    # ----------------------------------------------------
+    # AUTHENTICATION
+    # ----------------------------------------------------
 
     def _get_smart_token(self):
-        """Authenticates with SMART API using Form-data logic."""
+
         try:
-            auth_payload = {
+
+            payload = {
                 "client_id": settings.SMART_CLIENT_ID,
                 "client_secret": settings.SMART_CLIENT_SECRET,
                 "grant_type": settings.SMART_GRANT_TYPE
             }
-            resp = self.session.post(
+
+            res = self.session.post(
                 settings.SMART_ACCESS_TOKEN,
-                data=auth_payload,
+                data=payload,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 timeout=30
             )
-            return resp.json().get("access_token")
+
+            return res.json().get("access_token")
+
         except Exception as e:
-            print(f"❌ SMART Corp Member Auth Error: {e}")
+
+            logger.error(f"SMART Auth Failed: {e}")
             return None
 
+
+    # ----------------------------------------------------
+    # MAIN SYNC
+    # ----------------------------------------------------
+
     def run_member_sync(self):
-        """Fetches pending corporate members and syncs via URL Parameters."""
-        print("\n🏢 CORPORATE MEMBER SYNC STARTED")
-        sync_stats = {"success": 0, "failed": 0, "total": 0}
-        
+
+        logger.info("SMART MEMBER SYNC STARTED")
+
+        stats = {"success": 0, "failed": 0, "total": 0}
+
         try:
+
             with connections[self.mssql_alias].cursor() as mssql_cursor:
-                # 1. Fetch TOP 25
+
                 query = "SELECT TOP 25 * FROM dbo.smart_corp_members_new"
+
                 mssql_cursor.execute(query)
+
                 columns = [col[0] for col in mssql_cursor.description]
+
                 rows = mssql_cursor.fetchall()
 
                 if not rows:
-                    print(">>> SYNC: No corporate members pending.")
-                    return {"status": "success", "message": "No members pending."}
+                    logger.info("No members pending sync")
+                    return {"status": "success", "message": "No members"}
 
-                members = [dict(zip(columns, row)) for row in rows]
-                sync_stats["total"] = len(members)
-                
+                members = [dict(zip(columns, r)) for r in rows]
+
+                stats["total"] = len(members)
+
                 self.smart_token = self._get_smart_token()
+
                 if not self.smart_token:
-                    return {"status": "error", "message": "SMART Auth failed."}
+                    return {"status": "error", "message": "SMART auth failed"}
 
                 for member in members:
-                    if self._process_member(mssql_cursor, member):
-                        sync_stats["success"] += 1
-                    else:
-                        sync_stats["failed"] += 1
 
-            print(f"✅ CORP MEMBER DONE → Success: {sync_stats['success']}, Failed: {sync_stats['failed']}\n")
-            return {"status": "success", "stats": sync_stats}
+                    result = self._process_member(mssql_cursor, member)
+
+                    if result:
+                        stats["success"] += 1
+                    else:
+                        stats["failed"] += 1
+
+            logger.info(f"SYNC COMPLETE {stats}")
+
+            return {"status": "success", "stats": stats}
 
         except DatabaseError as e:
-            print(f"❌ Member Sync MSSQL Error: {str(e)}")
-            return {"status": "error", "message": "External database unavailable."}
+
+            logger.error(f"MSSQL Error: {e}")
+
+            return {"status": "error", "message": "External DB unavailable"}
+
+
+    # ----------------------------------------------------
+    # MEMBER PROCESSING
+    # ----------------------------------------------------
 
     def _process_member(self, mssql_cursor, val):
-        """Handles Name/Phone parsing, URL-based API call, and Atomic Audit."""
-        # 1. Data Parsing & Transformation
-        member_no = str(val.get('member_no') or "")
-        family_no = str(val.get('family_no') or "")
-        anniv = str(val.get('anniv') or "")
-        cln_cat_code = f"{val.get('category')}-{anniv}"
 
-        # Name splitting
-        full_name = (val.get('member_name') or "").strip().split()
+        member_no = str(val.get("member_no"))
+        family_no = str(val.get("family_no"))
+        anniv = int(val.get("anniv") or 0)
+
+        full_name = (val.get("member_name") or "").split()
+
         surname = full_name[0] if len(full_name) > 0 else ""
         second_name = full_name[1] if len(full_name) > 1 else ""
         third_name = full_name[2] if len(full_name) > 2 else ""
 
-        # Normalize Phone to 254 Format
-        raw_phone = str(val.get('mobile_no', '')).replace(" ", "").replace("+", "")
+        raw_phone = str(val.get("mobile_no", "")).replace("+", "").replace(" ", "")
         mobile_phone = f"254{raw_phone[-9:]}" if len(raw_phone) >= 9 else ""
 
-        # 2. Prepare Payload (All forced to String for urlencode)
-        smart_payload = {
-            'familyCode': family_no,
-            'membershipNumber': member_no,
-            'staffNumber': member_no,
-            'surname': str(surname),
-            'secondName': str(second_name),
-            'thirdName': str(third_name),
-            'otherNames': "null",
-            'idNumber': "",
-            'dob': str(val.get('dob') or "null"),
-            'gender': str(val.get('gender') or ""),
-            'nhifNumber': str(val.get('nhif_no') or ""),
-            'memType': str(val.get('member_type') or ""),
-            'schemeStartDate': str(val.get('start_date') or ""),
-            'schemeEndDate': str(val.get('end_date') or ""),
-            'clnCatCode': cln_cat_code,
-            'clnPolCode': str(val.get('corp_id', "")),
-            'phone_number': mobile_phone,
-            'email_address': str(val.get('email', "")),
-            'userID': str(val.get('user_id') or "SYSTEM"),
-            'country': "KE",
-            'customerid': str(settings.SMART_CUSTOMER_ID),
-            'roamingCountries': "KE"
+        cln_cat_code = f"{val.get('category')}-{anniv}"
+
+
+        # ----------------------------------------------------
+        # MEMBER PAYLOAD
+        # ----------------------------------------------------
+
+        member_payload = {
+
+            "familyCode": family_no,
+            "membershipNumber": member_no,
+            "staffNumber": member_no,
+            "surname": surname,
+            "secondName": second_name,
+            "thirdName": third_name,
+            "otherNames": "null",
+            "idNumber": "",
+            "dob": str(val.get("dob") or "null"),
+            "gender": str(val.get("gender") or ""),
+            "nhifNumber": "",
+            "memType": str(val.get("member_type") or ""),
+            "schemeStartDate": str(val.get("start_date") or ""),
+            "schemeEndDate": str(val.get("end_date") or ""),
+            "clnCatCode": cln_cat_code,
+            "clnPolCode": str(val.get("corp_id")),
+            "phone_number": mobile_phone,
+            "email_address": str(val.get("email", "")),
+            "userID": str(val.get("user_id") or "SYSTEM"),
+            "country": "KE",
+            "customerid": str(settings.SMART_CUSTOMER_ID),
+            "roamingCountries": "KE"
         }
 
-        # 3. API Call (URL Parameters logic)
-        res_data = {}
-        status_code = 500
-        is_ok = False
-        
+
+        # ----------------------------------------------------
+        # CATEGORY CHANGE PAYLOAD
+        # ----------------------------------------------------
+
+        category_payload = {
+
+            "membershipNumber": member_no,
+            "clnCatCode": cln_cat_code,
+            "userID": str(val.get("user_id") or "SYSTEM"),
+            "customerid": str(settings.SMART_CUSTOMER_ID)
+        }
+
+
+        member_ok = False
+        category_ok = True
+
+
+        # ----------------------------------------------------
+        # POST MEMBER
+        # ----------------------------------------------------
+
         try:
-            api_url = f"{settings.SMART_API_BASE_URL}members?{urlencode(smart_payload)}"
+
+            api_url = f"{settings.SMART_API_BASE_URL}members?{urlencode(member_payload)}"
+
             res = self.session.post(
-                api_url, 
-                headers={"Authorization": f"Bearer {self.smart_token}"}, 
-                timeout=100 
+                api_url,
+                headers={"Authorization": f"Bearer {self.smart_token}"},
+                timeout=60
             )
+
             status_code = res.status_code
+
             try:
                 res_data = res.json()
             except:
-                res_data = {"raw_response": res.text}
-                
-            is_ok = str(res_data.get('successful', '')).lower() == 'true'
-            
-            if is_ok:
-                print(f"✅ Success: Corp Member {member_no} ({surname})")
-            else:
-                print(f"❌ Rejected: {member_no} - {res_data.get('status_msg')}")
+                res_data = {"raw": res.text}
+
+            member_ok = str(res_data.get("successful")).lower() == "true"
 
         except Exception as e:
-            print(f"!!! API ERROR for Corp Member {member_no}: {e}")
+
+            logger.error(f"Member API error {member_no}: {e}")
+
             res_data = {"error": str(e)}
+            status_code = 500
+            member_ok = False
 
-        # 4. Atomic Database Update and Audit Trail
+
+        # ----------------------------------------------------
+        # CATEGORY CHANGE (ANNIV > 1)
+        # ----------------------------------------------------
+
+        if anniv > 1:
+
+            try:
+
+                cat_url = f"{settings.SMART_API_BASE_URL}members/categorychange?{urlencode(category_payload)}"
+
+                res = self.session.post(
+                    cat_url,
+                    headers={"Authorization": f"Bearer {self.smart_token}"},
+                    timeout=60
+                )
+
+                http_status = res.status_code
+
+                try:
+                    cat_res = res.json()
+                except:
+                    cat_res = {"raw": res.text}
+
+                category_ok = str(cat_res.get("successful")).lower() == "true"
+
+            except Exception as e:
+
+                cat_res = {"error": str(e)}
+                http_status = 500
+                category_ok = False
+
+
+            # ----------------------------------------------------
+            # LOG CATEGORY CHANGE
+            # ----------------------------------------------------
+
+            MemberCategoryChangeLog.objects.create(
+
+                member_no=member_no,
+                anniv=anniv,
+                request_payload=category_payload,
+                response_payload=cat_res,
+                http_status=http_status,
+                success=category_ok
+            )
+
+
+        final_status = member_ok and category_ok
+
+
+        # ----------------------------------------------------
+        # DATABASE UPDATE
+        # ----------------------------------------------------
+
         try:
+
             with transaction.atomic(using=self.audit_db):
-                sync_status = 1 if is_ok else 2
 
-                # Update MSSQL Tables
-                mssql_cursor.execute("UPDATE dbo.member_info SET sync = %s WHERE member_no = %s", [sync_status, member_no])
-                mssql_cursor.execute("UPDATE dbo.member_anniversary SET sync = %s WHERE member_no = %s AND anniv = %s", [sync_status, member_no, anniv])
+                sync_status = 1 if final_status else 2
 
-                # Log to Audit Models (Postgres)
+                mssql_cursor.execute(
+                    "UPDATE dbo.member_info SET sync=%s WHERE member_no=%s",
+                    [sync_status, member_no]
+                )
+
+                mssql_cursor.execute(
+                    "UPDATE dbo.member_anniversary SET sync=%s WHERE member_no=%s AND anniv=%s",
+                    [sync_status, member_no, anniv]
+                )
+
                 audit_data = {
+
                     "member_no": member_no,
                     "family_no": family_no,
-                    "request_object": smart_payload,
+                    "request_object": member_payload,
                     "surname": surname,
                     "second_name": second_name,
                     "third_name": third_name,
-                    "category": str(val.get('category')),
+                    "category": str(val.get("category")),
                     "anniv": anniv,
-                    "corp_id": str(val.get('corp_id')),
-                    "smart_status": int(status_code),
+                    "corp_id": str(val.get("corp_id")),
+                    "smart_status": status_code,
                     "smart_response": res_data
                 }
 
-                if is_ok:
+                if final_status:
                     MemberSyncSuccess.objects.create(**audit_data)
                 else:
                     MemberSyncFailure.objects.create(**audit_data)
 
-            return is_ok
+            return final_status
+
         except Exception as e:
-            print(f"❌ Atomic Rollback for Corp Member {member_no}: {e}")
+
+            logger.error(f"DB rollback for {member_no}: {e}")
+
             return False
+

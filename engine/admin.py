@@ -188,3 +188,17 @@ class CopaySyncAdmin(admin.ModelAdmin):
     date_hierarchy = "created_at"
 
     list_per_page = 50
+    
+    
+    
+    # admin.py
+from django.contrib import admin
+from .models import MemberCategoryChangeLog
+
+@admin.register(MemberCategoryChangeLog)
+class MemberCategoryChangeLogAdmin(admin.ModelAdmin):
+    list_display = ('member_no', 'anniv', 'success', 'http_status', 'created_at')
+    list_filter = ('anniv', 'success', 'http_status', 'created_at')
+    search_fields = ('member_no',)
+    readonly_fields = ('created_at',)
+    ordering = ('-created_at',)

@@ -110,3 +110,7 @@ class MemberSyncResetLog(models.Model):
 
     def __str__(self):
         return f"{self.family_no} - Anniv: {self.anniv} - Processed: {self.processed}"
+    
+    
+    
+    

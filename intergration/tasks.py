@@ -71,6 +71,8 @@
 #         return {"status": "error", "message": str(e)}
     
 
+
+
 # @shared_task(name="tasks.sync_retail_copays_to_smart")
 # def sync_retail_copays_task():
 #     """

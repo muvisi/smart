@@ -326,3 +326,30 @@ class CopaySync(models.Model):
 
     def __str__(self):
         return f"{self.id} - {self.transaction_name} - {self.status}"
+    
+    
+    
+    
+
+
+class MemberCategoryChangeLog(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    member_no = models.CharField(max_length=50)
+    anniv = models.IntegerField()
+
+    request_payload = models.JSONField()
+    response_payload = models.JSONField(null=True, blank=True)
+
+    http_status = models.IntegerField(null=True, blank=True)
+    success = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "member_category_change_log"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.member_no} - anniv {self.anniv}"
