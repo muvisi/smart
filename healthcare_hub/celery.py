@@ -34,21 +34,44 @@ from datetime import timedelta
 #     }
 # }
 
+# app.conf.beat_schedule = {
+
+#     'smart-sync-every-2-minutes': {
+#         'task': 'intergration.tasks.run_full_smart_sync',
+#         'schedule': timedelta(seconds=120),
+#     },
+
+#     'daily-allocation-5pm': {
+#         'task': 'commisions.tasks.daily_allocation_task',
+#         'schedule': crontab(hour=17, minute=0, day_of_week='1-6'),
+#     },
+    
+
+# }
+from datetime import timedelta
+from celery.schedules import crontab
+
 app.conf.beat_schedule = {
 
     'smart-sync-every-2-minutes': {
         'task': 'intergration.tasks.run_full_smart_sync',
-        'schedule': timedelta(seconds=120),
+        'schedule': timedelta(seconds=120),  # every 2 minutes
     },
 
     'daily-allocation-5pm': {
         'task': 'commisions.tasks.daily_allocation_task',
         'schedule': crontab(hour=17, minute=0, day_of_week='1-6'),
     },
-    
+
+    # -------------------------------------------------
+    # Member Reset Sync Task every 2 minutes
+    # -------------------------------------------------
+    'member-reset-sync-every-2-minutes': {
+        'task': 'intergration.tasks.member_reset_sync_task',
+        'schedule': timedelta(seconds=120),  # every 2 minutes
+    },
 
 }
-
 # app.conf.beat_schedule = {
     
 #     # --- PHASE 1: Foundations (Starts immediately at 0s) ---
