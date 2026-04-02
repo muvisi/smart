@@ -508,7 +508,7 @@ class SmartMemberSyncService:
         if anniv > 1:
             try:
                 category_payload = {
-                    "membershipNumber": member_no,
+                    "memberNumber": member_no,
                     "clnPolCode": str(val.get("corp_id")),
                     "country": "KE",
                     "newGrade": cln_cat_code,
