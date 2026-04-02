@@ -482,11 +482,13 @@ class SmartMemberSyncService:
         # CATEGORY CHANGE PAYLOAD (Anniversary > 1)
         # ----------------------------------------------------
         category_payload = {
-            "memberNumber": member_no,
-            "clnCatCode": cln_cat_code,
-            "userID": str(val.get("user_id") or "SYSTEM"),
-            "customerid": str(settings.SMART_CUSTOMER_ID)
-        }
+                    "memberNumber": member_no,
+                    "clnPolCode": str(val.get("corp_id")),
+                    "country": "KE",
+                    "newGrade": cln_cat_code,
+                    "userId": str(val.get("user_id") or "SYSTEM"),
+                    "customerid": str(settings.SMART_CUSTOMER_ID)
+                }
 
         member_ok = False
         category_ok = True
