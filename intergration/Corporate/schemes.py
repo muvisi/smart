@@ -584,7 +584,6 @@ class SmartSyncService:
 #             return {"status": "error", "message": str(e)}
 
 
-
 import json
 import requests
 import logging
@@ -604,7 +603,7 @@ class SmartSyncTaskService:
         self.smart_token = None
 
     def _get_smart_token(self):
-        """Authenticates with SMART API using form-urlencoded data."""
+        """Authenticate with SMART API using form-urlencoded data."""
         try:
             auth_payload = {
                 "client_id": settings.SMART_CLIENT_ID,
@@ -620,15 +619,14 @@ class SmartSyncTaskService:
             )
             return resp.json().get("access_token")
         except Exception as e:
-            print(f"❌ SMART Auth Error: {e}")
+            logger.error(f"SMART Auth Error: {e}")
             return None
 
     def run_sync(self):
-        print("🔄 DB SCHEMES SYNC STARTED (CELERY TASK)")
-
+        logger.info("🔄 DB SCHEMES SYNC STARTED")
         smart_token = self._get_smart_token()
         if not smart_token:
-            print("❌ Failed to get SMART token")
+            logger.error("Failed to get SMART token")
             return {"status": "error", "message": "Auth failed"}
 
         stats = {"total": 0, "success": 0, "failed": 0}
@@ -636,20 +634,20 @@ class SmartSyncTaskService:
         try:
             with connections[self.mssql_alias].cursor() as cursor:
 
-                # FIRST QUERY: NEW schemes
+                # 1️⃣ Fetch NEW schemes first
                 cursor.execute("SELECT * FROM dbo.smart_schemes_new")
                 columns = [col[0] for col in cursor.description]
                 rows = cursor.fetchall()
 
-                # IF EMPTY → QUERY RENEWALS
+                # 2️⃣ If no new schemes, fetch RENEWAL schemes
                 if not rows:
-                    print(">>> No NEW schemes found. Checking renewals...")
+                    logger.info("No NEW schemes found. Checking renewals...")
                     cursor.execute("SELECT * FROM dbo.smart_schemes_renewal")
                     columns = [col[0] for col in cursor.description]
                     rows = cursor.fetchall()
 
                 if not rows:
-                    print(">>> SYNC: No records found.")
+                    logger.info("No schemes pending for sync.")
                     return {"status": "skipped", "message": "No schemes pending."}
 
                 stats["total"] = len(rows)
@@ -659,6 +657,7 @@ class SmartSyncTaskService:
                     cid = scheme.get('corp_id')
                     anniv = scheme.get('anniv')
 
+                    # ✅ Payload conforms to second example
                     payload = {
                         "companyName": str(scheme.get("scheme_name") or ""),
                         "clnPolCode": str(cid or ""),
@@ -675,18 +674,18 @@ class SmartSyncTaskService:
                     encoded_params = urlencode(payload)
                     api_url = f"{settings.SMART_API_BASE_URL}schemes?{encoded_params}"
 
-                    print(f"\n💡 SENDING TO SMART (ID: {payload['clnPolCode']})")
-                    print(f"URL: {api_url}")
+                    logger.info(f"Sending to SMART (ID: {payload['clnPolCode']}) URL: {api_url}")
 
                     is_retail = str(scheme.get('scheme_type', '')).upper() != 'CORPORATE'
                     sync_log = ApiSyncLog(
-                        api_name="SyncschemesSmart",
+                        api_name="SyncDBToSmart",
                         transaction_name=f"{'Retail' if is_retail else 'Corporate'} Scheme: {payload['companyName']}",
                         request_object=payload,
                         status=2
                     )
 
                     try:
+                        # POST request
                         resp = requests.post(
                             api_url,
                             headers={"Authorization": f"Bearer {smart_token}"},
@@ -696,22 +695,20 @@ class SmartSyncTaskService:
 
                         try:
                             res_data = resp.json()
-                        except:
+                        except Exception:
                             res_data = {"raw_response": resp.text}
 
                         sync_log.http_code = resp.status_code
                         sync_log.response_object = res_data
-
                         is_successful = res_data.get("successful") is True
                         sync_log.status = 1 if is_successful else 2
 
-                        # --- Start transaction for MSSQL updates and member resets ---
+                        # --- Transaction for MSSQL updates + member resets ---
                         with transaction.atomic(using=self.mssql_alias):
-
                             status_val = sync_log.status
 
                             if not is_retail:
-                                # Update corporate scheme tables
+                                # Corporate logic
                                 cursor.execute(
                                     "UPDATE dbo.corp_anniversary SET sync=%s WHERE corp_id=%s AND anniv=%s",
                                     [status_val, cid, anniv]
@@ -720,65 +717,47 @@ class SmartSyncTaskService:
                                     "UPDATE dbo.corporate SET sync=%s WHERE corp_id=%s",
                                     [status_val, cid]
                                 )
-
-                                # --- Reset member-related tables dynamically using scheme anniv ---
-                                cursor.execute(
-                                    "UPDATE dbo.member_info SET sync=NULL WHERE corp_id=%s",
-                                    [cid]
-                                )
-                                cursor.execute(
-                                    "UPDATE dbo.principal_applicant SET sync=NULL WHERE corp_id=%s",
-                                    [cid]
-                                )
-                                cursor.execute(
-                                    """
+                                # Reset member-related tables dynamically based on anniv
+                                cursor.execute("UPDATE dbo.member_info SET sync=NULL WHERE corp_id=%s", [cid])
+                                cursor.execute("UPDATE dbo.principal_applicant SET sync=NULL WHERE corp_id=%s", [cid])
+                                cursor.execute("""
                                     UPDATE dbo.member_benefits
                                     SET sync=NULL
                                     WHERE member_no IN (
                                         SELECT member_no FROM dbo.member_info WHERE corp_id=%s
                                     )
                                     AND anniv=%s
-                                    """,
-                                    [cid, anniv]
-                                )
-                                cursor.execute(
-                                    """
+                                """, [cid, anniv])
+                                cursor.execute("""
                                     UPDATE dbo.member_anniversary
                                     SET sync=NULL
                                     WHERE member_no IN (
                                         SELECT member_no FROM dbo.member_info WHERE corp_id=%s
                                     )
                                     AND GETDATE() BETWEEN start_date AND end_date
-                                    """,
-                                    [cid]
-                                )
+                                """, [cid])
 
                             else:
-                                # Retail scheme tables
-                                cursor.execute(
-                                    "UPDATE dbo.retail SET sync=%s WHERE corp_id=%s",
-                                    [status_val, cid]
-                                )
+                                # Retail logic
+                                cursor.execute("UPDATE dbo.retail SET sync=%s WHERE corp_id=%s", [status_val, cid])
 
-                        # --- End transaction ---
-
+                        # --- Stats update ---
                         if is_successful:
-                            print(f"✅ scheme posted: {payload['clnPolCode']} Status: {sync_log.status}")
+                            logger.info(f"✅ Scheme posted: {payload['clnPolCode']} Status: {sync_log.status}")
                             stats["success"] += 1
                         else:
-                            print(f"❌ scheme rejected: {payload['clnPolCode']} Status: {sync_log.status}")
+                            logger.warning(f"❌ Scheme rejected: {payload['clnPolCode']} Status: {sync_log.status}")
                             stats["failed"] += 1
 
                     except Exception as e:
-                        print(f"❌ SMART ERROR for {cid}: {e}")
+                        logger.error(f"SMART ERROR for {cid}: {e}")
                         stats["failed"] += 1
                     finally:
                         sync_log.save()
 
-            print(f"✅ DONE → Success: {stats['success']}, Failed: {stats['failed']}")
+            logger.info(f"✅ SYNC DONE → Success: {stats['success']}, Failed: {stats['failed']}")
             return {"status": "success", "stats": stats}
 
         except Exception as e:
-            print(f"!!! CRITICAL FAILURE: {str(e)}")
+            logger.critical(f"CRITICAL FAILURE: {e}")
             return {"status": "error", "message": str(e)}
-
