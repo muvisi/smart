@@ -67,8 +67,8 @@ app.conf.beat_schedule = {
     # Member Reset Sync Task every 2 minutes
     # -------------------------------------------------
     'member-reset-sync-every-2-minutes': {
-        'task': 'intergration.tasks.member_reset_sync_task',
-        'schedule': timedelta(seconds=120),  # every 2 minutes
+        'task': 'tasks.member_reset_sync_task',
+        'schedule': timedelta(seconds=30),  # every 2 minutes
     },
 
 }
