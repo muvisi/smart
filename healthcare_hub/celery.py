@@ -54,7 +54,7 @@ from celery.schedules import crontab
 app.conf.beat_schedule = {
 
     'smart-sync-every-2-minutes': {
-        'task': 'intergration.tasks.run_full_smart_sync',
+        'task': 'tasks.run_full_smart_sync',
         'schedule': timedelta(seconds=120),  # every 2 minutes
     },
     
@@ -64,7 +64,7 @@ app.conf.beat_schedule = {
     },
 
     'daily-allocation-5pm': {
-        'task': 'commisions.tasks.daily_allocation_task',
+        'task': 'tasks.daily_allocation_task',
         'schedule': crontab(hour=17, minute=0, day_of_week='1-6'),
     },
 
