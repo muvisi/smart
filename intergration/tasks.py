@@ -389,7 +389,7 @@ def run_full_smart_sync():
         # Phase 3: Benefits
         sync_benefits_task.s(),
         sync_retail_benefits_task.s(),
-        corp_copay_sync_task.s(),
+        # corp_copay_sync_task.s(),
 
         # Phase 4: Members
         sync_members_task.s(),

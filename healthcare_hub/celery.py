@@ -59,7 +59,7 @@ app.conf.beat_schedule = {
     },
     
     'smart-sync-every-2-minutes': {
-        'task': 'intergration.tasks.corp_copay_sync_task',
+        'task': 'tasks.corp_copay_sync_task',
         'schedule': timedelta(seconds=120),  # every 2 minutes
     },
 
