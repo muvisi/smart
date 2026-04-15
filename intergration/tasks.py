@@ -197,6 +197,7 @@ import logging
 # Import the specific services
 from intergration.Corporate.benefits import SmartBenefitSyncService
 from intergration.Corporate.copay import SmartRetailCopaySyncService
+from intergration.Corporate.corpcopay import SmartCorpCopaySyncService
 from intergration.Corporate.members import SmartMemberSyncService
 from intergration.Corporate.restrictions import SmartProviderRestrictionSyncService
 from intergration.Corporate.schemes import SmartSyncTaskService
@@ -352,7 +353,22 @@ def sync_provider_restrictions_task():
 # ---------------------------------------------------
 # MASTER ORCHESTRATION TASK (SEQUENTIAL PIPELINE)
 # ---------------------------------------------------
+@shared_task(bind=True, name="tasks.corp_copay_sync_task")
+def corp_copay_sync_task(self):
+    """
+    Celery task to sync corporate copays to SMART.
+    Runs in batches from MSSQL → SMART → updates sync status + logs.
+    """
+    try:
+        service = SmartCorpCopaySyncService()
+        stats = service.run_sync()
 
+        logger.info(f"✅ Corp Copay Sync Task Completed: {stats}")
+        return stats
+
+    except Exception as e:
+        logger.error(f"❌ Corp Copay Sync Task Failed: {e}")
+        raise
 @shared_task(name="tasks.run_full_smart_sync")
 def run_full_smart_sync():
     """
@@ -373,6 +389,7 @@ def run_full_smart_sync():
         # Phase 3: Benefits
         sync_benefits_task.s(),
         sync_retail_benefits_task.s(),
+        corp_copay_sync_task.s(),
 
         # Phase 4: Members
         sync_members_task.s(),
