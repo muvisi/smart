@@ -57,6 +57,11 @@ app.conf.beat_schedule = {
         'task': 'intergration.tasks.run_full_smart_sync',
         'schedule': timedelta(seconds=120),  # every 2 minutes
     },
+    
+    'smart-sync-every-2-minutes': {
+        'task': 'intergration.tasks.corp_copay_sync_task',
+        'schedule': timedelta(seconds=120),  # every 2 minutes
+    },
 
     'daily-allocation-5pm': {
         'task': 'commisions.tasks.daily_allocation_task',
