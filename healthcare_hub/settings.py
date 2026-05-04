@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 from decouple import config
 from pathlib import Path
+import ldap
+from django_auth_ldap.config import LDAPSearch
+
 import os
 SECRET_KEY = config('SECRET_KEY')
 
@@ -24,7 +27,7 @@ SECRET_KEY = 'django-insecure-ii74!4@@vu3$j54$z%ynzh#(l^bce@ugbbv896ba^%!=j_c=il
 
 DEBUG = True
 
-ALLOWED_HOSTS = ["192.168.0.135","192.168.0.239","92.168.0.135:8080","127.0.0.1:8000","127.0.0.1","localhost:8000","localhost"]
+ALLOWED_HOSTS = ["192.168.0.135","192.168.0.239","92.168.0.135:8080","127.0.0.1:8000","127.0.0.1","localhost:8000","localhost","https://4f4f-105-27-206-82.ngrok-free.app"]
 
 AUTH_USER_MODEL = "users.Users"
 
@@ -67,6 +70,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://192.168.0.239:8080",
     "https://cronportal.madison.co.ke",
+    "https://4f4f-105-27-206-82.ngrok-free.app",
     "http://cronportal.madison.co.ke",  # ADD THIS
 ]
 
@@ -75,6 +79,7 @@ ALLOWED_HOSTS = [
     "cronportal.madison.co.ke",
     "localhost",
     "127.0.0.1",
+    "4f4f-105-27-206-82.ngrok-free.app"
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -133,7 +138,15 @@ DATABASES = {
             'driver': 'ODBC Driver 18 for SQL Server',
             'extra_params': 'TrustServerCertificate=yes',
         },
-    }
+    },
+    'default_betterlife': {
+    'ENGINE': 'django.db.backends.postgresql',
+    'NAME': config('BETTERLIFE_DB_NAME'),
+    'USER': config('BETTERLIFE_DB_USER'),
+    'PASSWORD': config('BETTERLIFE_DB_PASSWORD'),
+    'HOST': config('BETTERLIFE_DB_HOST', default='127.0.0.1'),
+    'PORT': config('BETTERLIFE_DB_PORT', default='5432'),
+},
 }
 
 # DATABASES = {
@@ -277,6 +290,9 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'haisnotifications@madison.co.ke'
 EMAIL_HOST_PASSWORD = 'N!271111535161oz'
 
+# EMAIL_HOST_USER = 'betterlives@madison.co.ke'
+# EMAIL_HOST_PASSWORD = 'J/255829358595ub'
+
 # For test, send to your email
 TEST_EMAIL_RECIPIENTS = ['mwangangimuvisi@gmail.com']
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
@@ -302,3 +318,4 @@ TIME_ZONE = 'Africa/Nairobi'
 USE_I18N = True
 
 USE_TZ = True
+

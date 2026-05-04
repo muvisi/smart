@@ -29,14 +29,13 @@ class UsersViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Send the welcome email
         if user.email:
             send_welcome_email(user.username, user.email, data['password'], user.first_name, user.last_name)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-# ---------------- Email Function ----------------
+#---------------- Email Function ----------------
 def send_welcome_email(username, email, password, first_name="", last_name=""):
     subject = "Welcome to Madison Healthcare!"
     from_email = "haisnotifications@madison.co.ke"
@@ -46,30 +45,128 @@ def send_welcome_email(username, email, password, first_name="", last_name=""):
         "first_name": first_name,
         "last_name": last_name,
         "username": username,
-        "password": password,
+        "password": "AD PASSWORD",
     })
 
     msg = EmailMultiAlternatives(subject, "", from_email, [email,"mwangangimuvisi@gmail.com"])
     msg.attach_alternative(html_content, "text/html")
     msg.send()
     
+# from rest_framework.views import APIView
+# from rest_framework.response import Response
+# from rest_framework import status
+# from rest_framework_simplejwt.tokens import RefreshToken
+# from .serializers import LoginSerializer
+
+# class LoginAPIView(APIView):
+#     def post(self, request):
+#         serializer = LoginSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         user = serializer.validated_data['user']
+
+#         # Generate JWT token
+#         refresh = RefreshToken.for_user(user)
+#         return Response({
+#             'refresh': str(refresh),
+#             'access': str(refresh.access_token),
+#             'uuid': str(user.uuid),
+#             'username': user.username
+#         }, status=status.HTTP_200_OK)
+
+
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import LoginSerializer
+import ldap
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import get_user_model
+
+
+User = get_user_model()
+
 
 class LoginAPIView(APIView):
-    def post(self, request):
-        serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
 
-        # Generate JWT token
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-            'uuid': str(user.uuid),
-            'username': user.username
-        }, status=status.HTTP_200_OK)
+    def post(self, request):
+
+        username = request.data.get("username")
+        password = request.data.get("password")
+
+        try:
+            ldap_server = "ldap://192.168.0.4"
+
+            conn = ldap.initialize(ldap_server)
+            conn.protocol_version = 3
+            conn.set_option(ldap.OPT_REFERRALS, 0)
+
+            # AD UPN format
+            user_dn = f"{username}@madison.co.ke"
+
+            # 🔐 LDAP AUTH (this is your real AD login)
+            conn.simple_bind_s(user_dn, password)
+
+            # ✅ If successful → get or create Django user
+            user, created = User.objects.get_or_create(
+                username=username,
+                defaults={
+                    "email": f"{username}@madison.co.ke"
+                }
+            )
+
+            # 🔐 JWT generation
+            refresh = RefreshToken.for_user(user)
+
+            return Response({
+                "message": "Login Successful",
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "uuid": str(user.uuid),
+                "username": user.username,
+                "email": user.email,
+                "auth_source": "active-directory"
+            }, status=status.HTTP_200_OK)
+
+        except ldap.INVALID_CREDENTIALS:
+            return Response({
+                "message": "Invalid credentials"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        except ldap.SERVER_DOWN:
+            return Response({
+                "message": "Cannot connect to LDAP server"
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        except Exception as e:
+            return Response({
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# class LoginAPIView(APIView):
+
+#     def post(self, request):
+#         serializer = LoginSerializer(
+#             data=request.data,
+#             context={"request": request}  # 🔥 important for LDAP auth flow
+#         )
+#         serializer.is_valid(raise_exception=True)
+
+#         user = serializer.validated_data["user"]
+
+#         # 🔐 JWT generation (same as before)
+#         refresh = RefreshToken.for_user(user)
+
+#         return Response({
+#             "refresh": str(refresh),
+#             "access": str(refresh.access_token),
+#             "uuid": str(user.uuid),
+#             "username": user.username,
+
+#             # Optional but useful for AD debugging/visibility
+#             "auth_source": "ldap-ad"
+#         }, status=status.HTTP_200_OK)

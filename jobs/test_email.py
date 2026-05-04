@@ -12,7 +12,7 @@ django.setup()
 # 2️⃣ Email function
 def send_test_email():
     subject = "✅ Test Members Sync Email - Madison Healthcare"
-    from_email = "haisnotifications@madison.co.ke"
+    from_email = "betterlives@madison.co.ke"
     to_email = ["mwangangimuvisi@gmail.com"]
 
     # Example member data
