@@ -78,3 +78,50 @@ class DetailedCommissionRecordSerializer(CommissionRecordSerializer):
                 return val
         return val
  
+ 
+class AgentBrokerSerializer(serializers.Serializer):
+    agentbrokercode = serializers.IntegerField(allow_null=True, required=False)
+    agentbrokername = serializers.CharField(allow_null=True, required=False)
+    intermediarycode = serializers.IntegerField(allow_null=True, required=False)
+    agentbrokerenabled = serializers.BooleanField(allow_null=True, required=False)
+    branchcode = serializers.IntegerField(allow_null=True, required=False)
+    agentbrokeraccountname = serializers.CharField(allow_null=True, required=False)
+    agentbrokeraccount = serializers.CharField(allow_null=True, required=False)
+    agentbrokeremailaddress = serializers.CharField(allow_null=True, required=False)
+    agentbrokeraccountnumber = serializers.CharField(allow_null=True, required=False)
+    bankcode = serializers.IntegerField(allow_null=True, required=False)
+    bankbranchcode = serializers.IntegerField(allow_null=True, required=False)
+    agentbrokerphonenumber = serializers.CharField(allow_null=True, required=False)
+    intermediaryname = serializers.CharField(allow_null=True, required=False)
+    intermediarycommisionrate = serializers.SerializerMethodField()
+    intermediarywithholdingtax = serializers.SerializerMethodField()
+    intermediaryenabled = serializers.BooleanField(allow_null=True, required=False)
+    intermediarynameindex = serializers.CharField(allow_null=True, required=False)
+    intermediaryclass = serializers.CharField(allow_null=True, required=False)
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        for key, value in rep.items():
+            if isinstance(value, str):
+                rep[key] = value.strip()
+        return rep
+
+    def get_intermediarycommisionrate(self, obj):
+        val = obj.get('intermediarycommisionrate')
+        if val is not None:
+            try:
+                d = decimal.Decimal(str(val)).normalize()
+                return f"{d:f}%"
+            except Exception:
+                return val
+        return val
+
+    def get_intermediarywithholdingtax(self, obj):
+        val = obj.get('intermediarywithholdingtax')
+        if val is not None:
+            try:
+                d = decimal.Decimal(str(val)).normalize()
+                return f"{d:f}%"
+            except Exception:
+                return val
+        return val 

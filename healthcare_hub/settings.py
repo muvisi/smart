@@ -71,6 +71,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.0.239:8080",
     "https://cronportal.madison.co.ke",
     "https://4f4f-105-27-206-82.ngrok-free.app",
+    
     "http://cronportal.madison.co.ke",  # ADD THIS
 ]
 
@@ -79,7 +80,9 @@ ALLOWED_HOSTS = [
     "cronportal.madison.co.ke",
     "localhost",
     "127.0.0.1",
-    "4f4f-105-27-206-82.ngrok-free.app"
+    "4f4f-105-27-206-82.ngrok-free.app",
+    "0361-41-215-63-138.ngrok-free.app",
+    "4f7f-105-27-206-82.ngrok-free.app"
 ]
 
 CORS_ALLOW_CREDENTIALS = True
