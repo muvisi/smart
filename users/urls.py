@@ -8,7 +8,7 @@ router.register(r'users', UsersViewSet, basename='users')
 urlpatterns = [
     path('', include(router.urls)),
     path("login/", LoginAPIView.as_view(), name="login"),
-    path("users/<uuid:uuid>/", PatchUserAPIView.as_view()),
+    path("user/update/<uuid:uuid>/", PatchUserAPIView.as_view()),
 
 
 ]
