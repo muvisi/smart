@@ -90,62 +90,169 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.contrib.auth import authenticate
+from django.contrib.auth.models import User
+from rest_framework_simplejwt.tokens import RefreshToken
+import ldap
+
 
 class LoginAPIView(APIView):
 
     def post(self, request):
-
         username = request.data.get("username")
         password = request.data.get("password")
+        login_method = request.data.get("loginMethod", "local")  # default local
 
-        try:
-            ldap_server = "ldap://192.168.0.4"
+        if not username or not password:
+            return Response({
+                "message": "Username and password are required"
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-            conn = ldap.initialize(ldap_server)
-            conn.protocol_version = 3
-            conn.set_option(ldap.OPT_REFERRALS, 0)
+        # =========================
+        # 🔐 LDAP LOGIN FLOW
+        # =========================
+        if login_method.lower() == "ldap":
+            try:
+                ldap_server = "ldap://192.168.0.4"
 
-            # AD UPN format
-            user_dn = f"{username}@madison.co.ke"
+                conn = ldap.initialize(ldap_server)
+                conn.protocol_version = 3
+                conn.set_option(ldap.OPT_REFERRALS, 0)
 
-            # 🔐 LDAP AUTH (this is your real AD login)
-            conn.simple_bind_s(user_dn, password)
+                user_dn = f"{username}@madison.co.ke"
 
-            # ✅ If successful → get or create Django user
-            user, created = User.objects.get_or_create(
-                username=username,
-                defaults={
-                    "email": f"{username}@madison.co.ke"
-                }
-            )
+                # 🔐 Authenticate against AD
+                conn.simple_bind_s(user_dn, password)
 
-            # 🔐 JWT generation
+                # ✅ Create or get Django user
+                user, created = User.objects.get_or_create(
+                    username=username,
+                    defaults={
+                        "email": f"{username}@madison.co.ke"
+                    }
+                )
+
+                refresh = RefreshToken.for_user(user)
+
+                return Response({
+                    "message": "LDAP Login Successful",
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                    "uuid": str(user.uuid),
+                    "username": user.username,
+                    "department":user.department,
+                    "email": user.email,
+                    "auth_source": "ldap"
+                }, status=status.HTTP_200_OK)
+
+            except ldap.INVALID_CREDENTIALS:
+                return Response({
+                    "message": "Invalid LDAP credentials"
+                }, status=status.HTTP_401_UNAUTHORIZED)
+
+            except ldap.SERVER_DOWN:
+                return Response({
+                    "message": "LDAP server unavailable"
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+            except Exception as e:
+                return Response({
+                    "message": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # =========================
+        # 🔐 LOCAL LOGIN FLOW
+        # =========================
+        elif login_method.lower() == "local":
+            user = authenticate(request, username=username, password=password)
+
+            if user is None:
+                return Response({
+                    "message": "Invalid local credentials"
+                }, status=status.HTTP_401_UNAUTHORIZED)
+
             refresh = RefreshToken.for_user(user)
 
             return Response({
-                "message": "Login Successful",
+                "message": "Local Login Successful",
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
                 "uuid": str(user.uuid),
                 "username": user.username,
+                "department":user.department,
+
                 "email": user.email,
-                "auth_source": "active-directory"
+                "auth_source": "local"
             }, status=status.HTTP_200_OK)
 
-        except ldap.INVALID_CREDENTIALS:
+        # =========================
+        # ❌ INVALID METHOD
+        # =========================
+        else:
             return Response({
-                "message": "Invalid credentials"
-            }, status=status.HTTP_401_UNAUTHORIZED)
+                "message": "Invalid login method. Use 'ldap' or 'local'"
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+            
+            
+# class LoginAPIView(APIView):
 
-        except ldap.SERVER_DOWN:
-            return Response({
-                "message": "Cannot connect to LDAP server"
-            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+#     def post(self, request):
 
-        except Exception as e:
-            return Response({
-                "message": str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+#         username = request.data.get("username")
+#         password = request.data.get("password")
+
+#         try:
+#             ldap_server = "ldap://192.168.0.4"
+
+#             conn = ldap.initialize(ldap_server)
+#             conn.protocol_version = 3
+#             conn.set_option(ldap.OPT_REFERRALS, 0)
+
+#             # AD UPN format
+#             user_dn = f"{username}@madison.co.ke"
+
+#             # 🔐 LDAP AUTH (this is your real AD login)
+#             conn.simple_bind_s(user_dn, password)
+
+#             # ✅ If successful → get or create Django user
+#             user, created = User.objects.get_or_create(
+#                 username=username,
+#                 defaults={
+#                     "email": f"{username}@madison.co.ke"
+#                 }
+#             )
+
+#             # 🔐 JWT generation
+#             refresh = RefreshToken.for_user(user)
+
+#             return Response({
+#                 "message": "Login Successful",
+#                 "refresh": str(refresh),
+#                 "access": str(refresh.access_token),
+#                 "uuid": str(user.uuid),
+#                 "username": user.username,
+#                 "email": user.email,
+#                 "auth_source": "active-directory"
+#             }, status=status.HTTP_200_OK)
+
+#         except ldap.INVALID_CREDENTIALS:
+#             return Response({
+#                 "message": "Invalid credentials"
+#             }, status=status.HTTP_401_UNAUTHORIZED)
+
+#         except ldap.SERVER_DOWN:
+#             return Response({
+#                 "message": "Cannot connect to LDAP server"
+#             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+#         except Exception as e:
+#             return Response({
+#                 "message": str(e)
+#             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # class LoginAPIView(APIView):
 

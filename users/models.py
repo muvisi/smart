@@ -24,7 +24,7 @@ class Users(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(blank=True, null=True)
     first_name=models.CharField(null=True,blank=True,max_length=200)
     last_name=models.CharField(null=True,blank=True,max_length=200)
-    department = models.CharField(max_length=255, null=True, blank=True)
+    department = models.CharField(max_length=255, null=True, blank=True,default="underwriting")
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
