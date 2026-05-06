@@ -507,80 +507,117 @@ class CommissionFinancialViewPayable(APIView):
 
         query = f"""
         SELECT
-            sub.push_note_code,
-            sub.push_note_request_date,
-            sub.policy_number,
-            sub.transaction_number,
-            sub.agent_code,
-            sub.customer_code,
-            sub.intermediary_name,
-            sub.broker_name,
-            sub.receipted_amount,
-            sub.levies,
-            sub.available_allocation,
-            ROUND(sub.available_allocation * 0.10, 2) AS broker_commission,
-            ROUND(sub.available_allocation * 0.10 * 0.10, 2) AS withholding_tax,
-            ROUND(
-                (sub.available_allocation * 0.10) -
-                (sub.available_allocation * 0.10 * 0.10),
-            2) AS commission_payable,
-            sub.transaction_total_amount,
-            sub.payment_status,
-            sub.primarybenefitname,
-            sub.customerspolicycode,
-            sub.primarybenefitcode,
-            sub.customer_name,
-            sub.debit_code
-        FROM (
-            SELECT
-                p.pushnotecode AS push_note_code,
-                p.pushnotereqdatetime AS push_note_request_date,
-                p.pushnotepolicynumber AS policy_number,
-                t.transactionsnumber AS transaction_number,
-                p.pushnoteagentcode AS agent_code,
-                p.customerscode AS customer_code,
-                t.transactionstotalamount AS transaction_total_amount,
-                i.intermediaryname AS intermediary_name,
-                cus.customernamebytype AS customer_name,
-                p.pushnotedrcrnotenumber AS debit_code,
+    sub.push_note_code,
+    sub.push_note_request_date,
+    sub.policy_number,
+    sub.transaction_number,
+    sub.agent_code,
+    sub.customer_code,
+    sub.intermediary_name,
+    sub.broker_name,
+    sub.receipted_amount,
+    sub.levies,
+    sub.available_allocation,
 
-                c.customerspolicyagentbrokername AS broker_name,
-                COALESCE(sp_sum.receipted_amount, 0) AS receipted_amount,
-                ROUND((COALESCE(sp_sum.receipted_amount, 0) * 0.45 / 100) + 40, 2) AS levies,
-                ROUND(
-                    COALESCE(sp_sum.receipted_amount, 0) -
-                    ((COALESCE(sp_sum.receipted_amount, 0) * 0.45 / 100) + 40),
-                2) AS available_allocation,
-                CASE
-                    WHEN t.transactionstotalamount >
-                         COALESCE(sp_sum.receipted_amount, 0) + 1
-                        THEN 'Partially Paid'
-                    ELSE 'Fully Paid'
-                END AS payment_status,
-                p2.primarybenefitname,
-                p.customerspolicycode,
-                p2.primarybenefitcode
-            FROM pushnote p
-            LEFT JOIN transactions t
-                ON p.pushnotecode = t.transactionsnumber
-            JOIN intermediary i
-                ON p.pushnoteagentcode = i.intermediarycode
-            JOIN customerspolicy c
-                ON p.customerscode = c.customerscode
-            JOIN customers cus
-                ON p.customerscode = cus.customerscode    
+    -- ✅ UPDATED: dynamic commission
+    ROUND(
+        sub.available_allocation * (sub.intermediarycommisionrate / 100),
+    2) AS broker_commission,
 
-            LEFT JOIN (
-                SELECT
-                    sap_payment_drcrno,
-                    SUM(sap_payment_allocateamount) AS receipted_amount
-                FROM sap_payment
-                GROUP BY sap_payment_drcrno
-            ) sp_sum
-                ON p.pushnotedrcrnotenumber = sp_sum.sap_payment_drcrno
-            JOIN primarybenefit p2
-                ON p.customerspolicycode = p2.primarybenefitcode
-        ) sub
+    -- ✅ UPDATED: dynamic withholding tax
+    ROUND(
+        sub.available_allocation * (sub.intermediarycommisionrate / 100) *
+        (sub.intermediarywithholdingtax / 100),
+    2) AS withholding_tax,
+
+    -- ✅ UPDATED: dynamic commission payable
+    ROUND(
+        (sub.available_allocation * (sub.intermediarycommisionrate / 100)) -
+        (
+            sub.available_allocation * (sub.intermediarycommisionrate / 100) *
+            (sub.intermediarywithholdingtax / 100)
+        ),
+    2) AS commission_payable,
+
+    sub.transaction_total_amount,
+    sub.payment_status,
+    sub.primarybenefitname,
+    sub.customerspolicycode,
+    sub.primarybenefitcode,
+    sub.customer_name,
+    sub.debit_code
+
+FROM (
+    SELECT
+        p.pushnotecode AS push_note_code,
+        p.pushnotereqdatetime AS push_note_request_date,
+        p.pushnotepolicynumber AS policy_number,
+        t.transactionsnumber AS transaction_number,
+        p.pushnoteagentcode AS agent_code,
+        p.customerscode AS customer_code,
+        t.transactionstotalamount AS transaction_total_amount,
+
+        i.intermediaryname AS intermediary_name,
+
+        -- ✅ ADDED: bring rates into subquery
+        i.intermediarycommisionrate,
+        i.intermediarywithholdingtax,
+
+        cus.customernamebytype AS customer_name,
+        p.pushnotedrcrnotenumber AS debit_code,
+
+        c.customerspolicyagentbrokername AS broker_name,
+
+        COALESCE(sp_sum.receipted_amount, 0) AS receipted_amount,
+
+        ROUND(
+            (COALESCE(sp_sum.receipted_amount, 0) * 0.45 / 100) + 40,
+        2) AS levies,
+
+        ROUND(
+            COALESCE(sp_sum.receipted_amount, 0) -
+            ((COALESCE(sp_sum.receipted_amount, 0) * 0.45 / 100) + 40),
+        2) AS available_allocation,
+
+        CASE
+            WHEN t.transactionstotalamount >
+                 COALESCE(sp_sum.receipted_amount, 0) + 1
+                THEN 'Partially Paid'
+            ELSE 'Fully Paid'
+        END AS payment_status,
+
+        p2.primarybenefitname,
+        p.customerspolicycode,
+        p2.primarybenefitcode
+
+    FROM pushnote p
+
+    LEFT JOIN transactions t
+        ON p.pushnotecode = t.transactionsnumber
+
+    JOIN intermediary i
+        ON p.pushnoteagentcode = i.intermediarycode
+
+    JOIN customerspolicy c
+        ON p.customerscode = c.customerscode
+
+    JOIN customers cus
+        ON p.customerscode = cus.customerscode    
+
+    LEFT JOIN (
+        SELECT
+            sap_payment_drcrno,
+            SUM(sap_payment_allocateamount) AS receipted_amount
+        FROM sap_payment
+        GROUP BY sap_payment_drcrno
+    ) sp_sum
+        ON p.pushnotedrcrnotenumber = sp_sum.sap_payment_drcrno
+
+    JOIN primarybenefit p2
+        ON p.customerspolicycode = p2.primarybenefitcode
+
+) sub;
+        
         {where_sql}
         """
 
@@ -699,7 +736,81 @@ class CommissionFinancialViewPayable(APIView):
                 {"success": False, "error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+# SELECT
+#             sub.push_note_code,
+#             sub.push_note_request_date,
+#             sub.policy_number,
+#             sub.transaction_number,
+#             sub.agent_code,
+#             sub.customer_code,
+#             sub.intermediary_name,
+#             sub.broker_name,
+#             sub.receipted_amount,
+#             sub.levies,
+#             sub.available_allocation,
+#             ROUND(sub.available_allocation * 0.10, 2) AS broker_commission,
+#             ROUND(sub.available_allocation * 0.10 * 0.10, 2) AS withholding_tax,
+#             ROUND(
+#                 (sub.available_allocation * 0.10) -
+#                 (sub.available_allocation * 0.10 * 0.10),
+#             2) AS commission_payable,
+#             sub.transaction_total_amount,
+#             sub.payment_status,
+#             sub.primarybenefitname,
+#             sub.customerspolicycode,
+#             sub.primarybenefitcode,
+#             sub.customer_name,
+#             sub.debit_code
+#         FROM (
+#             SELECT
+#                 p.pushnotecode AS push_note_code,
+#                 p.pushnotereqdatetime AS push_note_request_date,
+#                 p.pushnotepolicynumber AS policy_number,
+#                 t.transactionsnumber AS transaction_number,
+#                 p.pushnoteagentcode AS agent_code,
+#                 p.customerscode AS customer_code,
+#                 t.transactionstotalamount AS transaction_total_amount,
+#                 i.intermediaryname AS intermediary_name,
+#                 cus.customernamebytype AS customer_name,
+#                 p.pushnotedrcrnotenumber AS debit_code,
 
+#                 c.customerspolicyagentbrokername AS broker_name,
+#                 COALESCE(sp_sum.receipted_amount, 0) AS receipted_amount,
+#                 ROUND((COALESCE(sp_sum.receipted_amount, 0) * 0.45 / 100) + 40, 2) AS levies,
+#                 ROUND(
+#                     COALESCE(sp_sum.receipted_amount, 0) -
+#                     ((COALESCE(sp_sum.receipted_amount, 0) * 0.45 / 100) + 40),
+#                 2) AS available_allocation,
+#                 CASE
+#                     WHEN t.transactionstotalamount >
+#                          COALESCE(sp_sum.receipted_amount, 0) + 1
+#                         THEN 'Partially Paid'
+#                     ELSE 'Fully Paid'
+#                 END AS payment_status,
+#                 p2.primarybenefitname,
+#                 p.customerspolicycode,
+#                 p2.primarybenefitcode
+#             FROM pushnote p
+#             LEFT JOIN transactions t
+#                 ON p.pushnotecode = t.transactionsnumber
+#             JOIN intermediary i
+#                 ON p.pushnoteagentcode = i.intermediarycode
+#             JOIN customerspolicy c
+#                 ON p.customerscode = c.customerscode
+#             JOIN customers cus
+#                 ON p.customerscode = cus.customerscode    
+
+#             LEFT JOIN (
+#                 SELECT
+#                     sap_payment_drcrno,
+#                     SUM(sap_payment_allocateamount) AS receipted_amount
+#                 FROM sap_payment
+#                 GROUP BY sap_payment_drcrno
+#             ) sp_sum
+#                 ON p.pushnotedrcrnotenumber = sp_sum.sap_payment_drcrno
+#             JOIN primarybenefit p2
+#                 ON p.customerspolicycode = p2.primarybenefitcode
+#         ) sub
 # class CommissionFinancialViewPayable(APIView):
 #     """Returns commission financial breakdown + syncs to DB (atomic bulk upsert)."""
 
@@ -1210,17 +1321,24 @@ from rest_framework import status
 
 from .models import CommissionRecord
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.db import transaction, connections
+from django.utils import timezone
+
+from .models import CommissionRecord
+
 
 class CommissionPayUpdateView(APIView):
-    """
-    Marks commissions as Fully Paid using debit_code
-    """
 
     def post(self, request):
         try:
             data = request.data.get("data")
 
-            # ✅ STRICT VALIDATION
+            # =========================
+            # ✅ VALIDATION
+            # =========================
             if not isinstance(data, list) or len(data) == 0:
                 return Response(
                     {"success": False, "message": "Data must be a non-empty list"},
@@ -1245,6 +1363,11 @@ class CommissionPayUpdateView(APIView):
                 else "system"
             )
 
+            now = timezone.now()
+
+            # =========================
+            # 🔐 LOCAL DB UPDATE
+            # =========================
             with transaction.atomic():
                 qs = CommissionRecord.objects.select_for_update().filter(
                     debit_code__in=debit_codes
@@ -1256,17 +1379,37 @@ class CommissionPayUpdateView(APIView):
                         status=status.HTTP_404_NOT_FOUND
                     )
 
-                updated_count = qs.update(
+                local_updated = qs.update(
                     is_paid=True,
                     payment_status="Fully Paid",
                     paid_by=user,
-                    paid_at=timezone.now()
+                    paid_at=now
                 )
 
+            # =========================
+            # 🔗 BETTERLIFE DB UPDATE
+            # =========================
+            external_updated = 0
+
+            with connections["default_betterlife"].cursor() as cursor:
+                cursor.execute("""
+                    UPDATE pushnote
+                    SET commission_paid = 1,
+                        paid_by = %s,
+                        paid_at = %s
+                    WHERE debit = ANY(%s)
+                """, [user, now, debit_codes])
+
+                external_updated = cursor.rowcount
+
+            # =========================
+            # ✅ RESPONSE
+            # =========================
             return Response({
                 "success": True,
                 "message": "Payments updated successfully",
-                "updated_records": updated_count,
+                "local_updated": local_updated,
+                "external_updated": external_updated,
                 "debit_codes": debit_codes
             })
 
@@ -1275,6 +1418,70 @@ class CommissionPayUpdateView(APIView):
                 {"success": False, "error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+# class CommissionPayUpdateView(APIView):
+#     """
+#     Marks commissions as Fully Paid using debit_code
+#     """
+
+#     def post(self, request):
+#         try:
+#             data = request.data.get("data")
+
+#             # ✅ STRICT VALIDATION
+#             if not isinstance(data, list) or len(data) == 0:
+#                 return Response(
+#                     {"success": False, "message": "Data must be a non-empty list"},
+#                     status=status.HTTP_400_BAD_REQUEST
+#                 )
+
+#             debit_codes = list({
+#                 item.get("debit_code")
+#                 for item in data
+#                 if item.get("debit_code")
+#             })
+
+#             if not debit_codes:
+#                 return Response(
+#                     {"success": False, "message": "Missing valid debit_code(s)"},
+#                     status=status.HTTP_400_BAD_REQUEST
+#                 )
+
+#             user = (
+#                 request.user.username
+#                 if request.user and request.user.is_authenticated
+#                 else "system"
+#             )
+
+#             with transaction.atomic():
+#                 qs = CommissionRecord.objects.select_for_update().filter(
+#                     debit_code__in=debit_codes
+#                 )
+
+#                 if not qs.exists():
+#                     return Response(
+#                         {"success": False, "message": "No matching records found"},
+#                         status=status.HTTP_404_NOT_FOUND
+#                     )
+
+#                 updated_count = qs.update(
+#                     is_paid=True,
+#                     payment_status="Fully Paid",
+#                     paid_by=user,
+#                     paid_at=timezone.now()
+#                 )
+
+#             return Response({
+#                 "success": True,
+#                 "message": "Payments updated successfully",
+#                 "updated_records": updated_count,
+#                 "debit_codes": debit_codes
+#             })
+
+#         except Exception as e:
+#             return Response(
+#                 {"success": False, "error": str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
 
 # from .models import CommissionRecord
 
