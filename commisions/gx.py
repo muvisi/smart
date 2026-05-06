@@ -616,7 +616,7 @@ FROM (
     JOIN primarybenefit p2
         ON p.customerspolicycode = p2.primarybenefitcode
 
-) sub;
+) sub
         
         {where_sql}
         """
