@@ -86,25 +86,118 @@ class PatchUserAPIView(APIView):
             }
         }, status=status.HTTP_200_OK)
 
+# class UsersViewSet(viewsets.ModelViewSet):
+#     queryset = Users.objects.all()
+#     serializer_class = UsersSerializer
+
+#     def create(self, request, *args, **kwargs):
+#         # Generate a random password if not provided
+#         data = request.data.copy()
+#         if not data.get('password'):
+#             data['password'] = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+
+#         serializer = self.get_serializer(data=data)
+#         serializer.is_valid(raise_exception=True)
+#         user = serializer.save()
+
+#         if user.email:
+#             send_welcome_email(user.username, user.email, data['password'], user.first_name, user.last_name)
+
+#         return Response(serializer.data, status=status.HTTP_201_CREATED)
+import random
+import string
+from rest_framework import status, viewsets
+from rest_framework.response import Response
+from django.contrib.auth.hashers import make_password
+
+from .models import Users
+from .serializers import UsersSerializer
+
+
 class UsersViewSet(viewsets.ModelViewSet):
     queryset = Users.objects.all()
     serializer_class = UsersSerializer
 
     def create(self, request, *args, **kwargs):
-        # Generate a random password if not provided
+
         data = request.data.copy()
-        if not data.get('password'):
-            data['password'] = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+        login_method = data.get("login_method", "local").lower()
 
-        serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        # =========================
+        # 🔐 LOCAL LOGIN USER
+        # =========================
+        if login_method == "local":
 
-        if user.email:
-            send_welcome_email(user.username, user.email, data['password'], user.first_name, user.last_name)
+            # require password or generate one
+            if not data.get("password"):
+                raw_password = ''.join(
+                    random.choices(string.ascii_letters + string.digits, k=10)
+                )
+                data["password"] = raw_password
+            else:
+                raw_password = data["password"]
 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # hash password
+            data["password"] = make_password(raw_password)
 
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
+
+            if user.email:
+                send_welcome_email(
+                    user.username,
+                    user.email,
+                    raw_password,
+                    user.first_name,
+                    user.last_name
+                )
+
+            return Response({
+                "message": "Local user created successfully",
+                "user": serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+        # =========================
+        # 🔐 LDAP USER
+        # =========================
+        elif login_method == "ldap":
+
+            # LDAP users should NOT use real password
+            ldap_placeholder_password = None
+
+            data["password"] = None  # or you can omit field entirely
+
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
+
+            # IMPORTANT: disable password login for LDAP users
+            user.set_unusable_password()
+            user.save()
+
+            # optional: send email without password
+            if user.email:
+                send_welcome_email(
+                    user.username,
+                    user.email,
+                    "Your password is managed by LDAP",
+                    user.first_name,
+                    user.last_name
+                )
+
+            return Response({
+                "message": "LDAP user created successfully",
+                "user": serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+        # =========================
+        # ❌ INVALID METHOD
+        # =========================
+        else:
+            return Response({
+                "message": "Invalid login method. Use 'ldap' or 'local'"
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 #---------------- Email Function ----------------
 def send_welcome_email(username, email, password, first_name="", last_name=""):
