@@ -1397,7 +1397,7 @@ class CommissionPayUpdateView(APIView):
                     SET commission_paid = 1,
                         paid_by = %s,
                         paid_at = %s
-                    WHERE debit = ANY(%s)
+                    WHERE pushnotedrcrnotenumber = ANY(%s)
                 """, [user, now, debit_codes])
 
                 external_updated = cursor.rowcount
