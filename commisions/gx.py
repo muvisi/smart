@@ -905,6 +905,33 @@ class CommissionFinancialViewPayable(APIView):
                 where_clauses.append(f"{col}::text ILIKE %s")
                 params.append(f"%{val}%")
 
+        # Filters by the dates
+        receipt_date = request.query_params.get("receipt_date")
+        receipt_date_from = request.query_params.get("start_date")
+        receipt_date_to = request.query_params.get("end_date")
+
+        # Exact date
+        if receipt_date:
+            where_clauses.append("DATE(sub.receipt_date) = %s")
+            params.append(receipt_date)
+
+        # Date range
+        if receipt_date_from and receipt_date_to:
+            where_clauses.append(
+                "DATE(sub.receipt_date) BETWEEN %s AND %s"
+            )
+            params.extend([receipt_date_from, receipt_date_to])
+
+        # From date only
+        elif receipt_date_from:
+            where_clauses.append("DATE(sub.receipt_date) >= %s")
+            params.append(receipt_date_from)
+
+        # To date only
+        elif receipt_date_to:
+            where_clauses.append("DATE(sub.receipt_date) <= %s")
+            params.append(receipt_date_to)
+
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
         query = f"""
