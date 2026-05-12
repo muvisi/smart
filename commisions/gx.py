@@ -894,7 +894,8 @@ class CommissionFinancialViewPayable(APIView):
 
         where_clauses = [
             "sub.intermediary_name <> 'DIRECT'",
-            "sub.receipted_amount > 5"
+            "sub.receipted_amount > 5",
+            "sub.payment_status = 'Fully Paid'"  # ✅ ADDED FILTER
         ]
         params = []
 
