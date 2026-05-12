@@ -947,7 +947,9 @@ class CommissionFinancialViewPayable(APIView):
     sub.customerspolicycode,
     sub.primarybenefitcode,
     sub.customer_name,
-    sub.debit_code
+    sub.debit_code,
+    sub.receipt_date 
+    
 
 FROM (
     SELECT
@@ -971,6 +973,8 @@ FROM (
         c.customerspolicyagentbrokername AS broker_name,
 
         COALESCE(sp_sum.receipted_amount, 0) AS receipted_amount,
+        sp_sum.receipt_date,
+        
 
         ROUND(
             (COALESCE(sp_sum.receipted_amount, 0) * 0.45 / 100) + 40,
@@ -1009,7 +1013,8 @@ FROM (
     LEFT JOIN (
         SELECT
             sap_payment_drcrno,
-            SUM(sap_payment_allocateamount) AS receipted_amount
+            SUM(sap_payment_allocateamount) AS receipted_amount,
+            MAX(sap_payment_receiptdate) AS receipt_date
         FROM sap_payment
         GROUP BY sap_payment_drcrno
     ) sp_sum
