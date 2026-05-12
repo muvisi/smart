@@ -244,11 +244,15 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import LoginSerializer
-import ldap
+# python-ldap may not be installed in all environments; try to import it but
+# fall back to None so the module can be imported during management commands.
+try:
+    import ldap
+except Exception:
+    ldap = None
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 
 
@@ -260,7 +264,6 @@ from rest_framework import status
 from django.contrib.auth import authenticate
 # from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
-import ldap
 
 from django.contrib.auth import authenticate, get_user_model
 from django.db.models import Q
@@ -268,7 +271,6 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
-import ldap
 
 User = get_user_model()
 

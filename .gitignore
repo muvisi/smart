@@ -1,0 +1,29 @@
+venv/
+venv/*
+
+myprojectenv/
+myprojectenv/*
+
+.env
+.idea/
+.idea/*
+
+# Text files and logs
+*.txt
+!requirements.txt
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Django
+db.sqlite3
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/

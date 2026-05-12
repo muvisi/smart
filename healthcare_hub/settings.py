@@ -11,8 +11,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 from decouple import config
 from pathlib import Path
-import ldap
-from django_auth_ldap.config import LDAPSearch
+# LDAP (python-ldap) removed because it may not be installed in all environments.
+# If you need LDAP functionality use `ldap3` and configure it in your app code.
+# import ldap
+# from django_auth_ldap.config import LDAPSearch
 
 import os
 SECRET_KEY = config('SECRET_KEY')
@@ -27,7 +29,8 @@ SECRET_KEY = 'django-insecure-ii74!4@@vu3$j54$z%ynzh#(l^bce@ugbbv896ba^%!=j_c=il
 
 DEBUG = True
 
-ALLOWED_HOSTS = ["192.168.0.135","192.168.0.239","92.168.0.135:8080","127.0.0.1:8000","127.0.0.1","localhost:8000","localhost","https://4f4f-105-27-206-82.ngrok-free.app"]
+
+ALLOWED_HOSTS = ["192.168.0.135","192.168.0.239","92.168.0.135:8080","127.0.0.1:8000","127.0.0.1","localhost:8000","localhost","https://4f4f-105-27-206-82.ngrok-free.app","https://rising-sacred-arise.ngrok-free.dev", "rising-sacred-arise.ngrok-free.dev", "4f4f-105-27-206-82.ngrok-free.app", "*"]
 
 AUTH_USER_MODEL = "users.Users"
 
@@ -48,7 +51,9 @@ INSTALLED_APPS = [
     'trigger',
     'reports',
     'commisions',
-    'django_celery_beat',
+    # 'django_celery_beat',  # commented out to avoid import errors when package is not installed
+    # If you need periodic task scheduling enable this and install the package:
+    # pip install django-celery-beat
     'intergration',
     
 
@@ -71,7 +76,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.0.239:8080",
     "https://cronportal.madison.co.ke",
     "https://4f4f-105-27-206-82.ngrok-free.app",
-    
+    "https://rising-sacred-arise.ngrok-free.dev",
+
     "http://cronportal.madison.co.ke",  # ADD THIS
 ]
 
@@ -82,7 +88,10 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "4f4f-105-27-206-82.ngrok-free.app",
     "0361-41-215-63-138.ngrok-free.app",
-    "4f7f-105-27-206-82.ngrok-free.app"
+    "4f7f-105-27-206-82.ngrok-free.app",
+    "https://rising-sacred-arise.ngrok-free.dev",
+    "rising-sacred-arise.ngrok-free.dev",
+    "*"
 ]
 
 CORS_ALLOW_CREDENTIALS = True

@@ -1,9 +1,11 @@
 
-import ldap
+# ldap (python-ldap) is commented out because the package may not be installed.
+# For LDAP operations prefer `ldap3` or re-enable python-ldap in your environment.
+# import ldap
+ldap = None
 from django.shortcuts import render
 
 
-import ldap
 from rest_framework.response import Response
 from rest_framework import status
 
