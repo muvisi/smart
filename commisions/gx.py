@@ -1063,7 +1063,8 @@ FROM (
                 columns = [col[0] for col in cursor.description]
                 results = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-            if request.query_params.get('paginate', '').lower() == 'false':
+            if (request.query_params.get('paginate', '').lower() == 'false'
+                    or request.query_params.get('export', '').lower() == 'true'):
                 return Response(results)
 
             paginator = PageNumberPagination()
