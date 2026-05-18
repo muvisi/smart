@@ -33,8 +33,7 @@ class CommissionAllocation(models.Model):
         return f"{self.invoice_no} - {self.receipt_no} - {self.allocated_amt}"
     
     
-import uuid
-from django.db import models
+
 
 class PaymentStatus(models.TextChoices):
     FULLY_PAID = "Fully Paid"

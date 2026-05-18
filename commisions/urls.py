@@ -1,7 +1,7 @@
-from django.urls import path
 
 from commisions.gx import CommissionFinancialView, CommissionFinancialViewPayable, CommissionFinancialViewPaid, CommissionPayUpdateView, CommissionRecordsView, DetailedCommissionRecordsView, AgentBrokersView
 from .views import alloc_commissions  # make sure the import matches your file
+from django.urls import path, include
 
 urlpatterns = [
    
@@ -12,12 +12,8 @@ urlpatterns = [
     path("pay/",CommissionFinancialViewPayable.as_view(),name="commission-financial"),
     path("paid/",CommissionFinancialViewPaid.as_view(),name="commission-financial-paid"),
     path("getagentbrokers/", AgentBrokersView.as_view(), name="get-agent-brokers"),
- 
-     path(
-        "authorize/",
-        CommissionPayUpdateView.as_view(),
-        name="commission-pay-update"
-    ),
+    
+    path("authorize/",CommissionPayUpdateView.as_view(),name="commission-pay-update"),
 
 
 
