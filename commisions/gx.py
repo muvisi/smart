@@ -1608,19 +1608,21 @@ from rest_framework.pagination import PageNumberPagination
 
 from commisions.models import CommissionRecord
 
+from django.db import transaction, connections
+from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
+
+from commisions.models import CommissionRecord
+
 
 class CommissionFinancialViewPayable(APIView):
-    """Returns commission financial breakdown + atomic sync to CommissionRecord."""
+    """Returns ONLY valid fully paid commissions and syncs them atomically."""
 
     def get(self, request):
 
         try:
-            where_clauses = [
-                "sub.intermediary_name <> 'DIRECT'",
-                "sub.receipted_amount > 5"
-            ]
-
-            params = []
 
             query = """
             SELECT
@@ -1679,7 +1681,6 @@ class CommissionFinancialViewPayable(APIView):
                     t.transactionsnumber AS transaction_number,
                     p.pushnoteagentcode AS agent_code,
                     p.customerscode AS customer_code,
-
                     t.transactionstotalamount AS transaction_total_amount,
 
                     i.intermediaryname AS intermediary_name,
@@ -1747,19 +1748,24 @@ class CommissionFinancialViewPayable(APIView):
                 JOIN primarybenefit p2
                     ON p.customerspolicycode = p2.primarybenefitcode
 
-                WHERE p.commission_paid IS NULL OR p.commission_paid = 0
+                WHERE
+                    (p.commission_paid IS NULL OR p.commission_paid = 0)
 
             ) sub
+
+            WHERE
+                sub.payment_status = 'Fully Paid'
+                AND sub.available_allocation > 1
             """
 
             with connections['default_betterlife'].cursor() as cursor:
-                cursor.execute(query, params)
+                cursor.execute(query)
                 columns = [col[0] for col in cursor.description]
                 results = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-            # =========================================
-            # ATOMIC SYNC (NO UNIQUE CONSTRAINT NEEDED)
-            # =========================================
+            # ==============================
+            # ATOMIC SYNC
+            # ==============================
 
             with transaction.atomic():
 
@@ -1885,12 +1891,7 @@ class CommissionFinancialViewPayable(APIView):
                         batch_size=1000
                     )
 
-            # =========================================
-            # RESPONSE (PAGINATION)
-            # =========================================
-
             paginator = PageNumberPagination()
-
             paginated = paginator.paginate_queryset(results, request, view=self)
 
             return paginator.get_paginated_response(paginated)
@@ -1898,8 +1899,299 @@ class CommissionFinancialViewPayable(APIView):
         except Exception as e:
             return Response(
                 {"success": False, "error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=500
             )
+# class CommissionFinancialViewPayable(APIView):
+#     """Returns commission financial breakdown + atomic sync to CommissionRecord."""
+
+#     def get(self, request):
+
+#         try:
+#             where_clauses = [
+#                 "sub.intermediary_name <> 'DIRECT'",
+#                 "sub.receipted_amount > 5"
+#             ]
+
+#             params = []
+
+#             query = """
+#             SELECT
+#                 sub.push_note_code,
+#                 sub.push_note_request_date,
+#                 sub.policy_number,
+#                 sub.transaction_number,
+#                 sub.agent_code,
+#                 sub.customer_code,
+#                 sub.intermediary_name,
+#                 sub.broker_name,
+#                 sub.receipted_amount,
+#                 sub.levies,
+#                 sub.available_allocation,
+
+#                 ROUND(
+#                     sub.available_allocation *
+#                     (sub.intermediarycommisionrate / 100),
+#                     2
+#                 ) AS broker_commission,
+
+#                 ROUND(
+#                     sub.available_allocation *
+#                     (sub.intermediarycommisionrate / 100) *
+#                     (sub.intermediarywithholdingtax / 100),
+#                     2
+#                 ) AS withholding_tax,
+
+#                 ROUND(
+#                     (
+#                         sub.available_allocation *
+#                         (sub.intermediarycommisionrate / 100)
+#                     ) -
+#                     (
+#                         sub.available_allocation *
+#                         (sub.intermediarycommisionrate / 100) *
+#                         (sub.intermediarywithholdingtax / 100)
+#                     ),
+#                     2
+#                 ) AS commission_payable,
+
+#                 sub.transaction_total_amount,
+#                 sub.payment_status,
+#                 sub.primarybenefitname,
+#                 sub.customerspolicycode,
+#                 sub.primarybenefitcode,
+#                 sub.customer_name,
+#                 sub.debit_code
+
+#             FROM (
+
+#                 SELECT
+#                     p.pushnotecode AS push_note_code,
+#                     p.pushnotereqdatetime AS push_note_request_date,
+#                     p.pushnotepolicynumber AS policy_number,
+#                     t.transactionsnumber AS transaction_number,
+#                     p.pushnoteagentcode AS agent_code,
+#                     p.customerscode AS customer_code,
+
+#                     t.transactionstotalamount AS transaction_total_amount,
+
+#                     i.intermediaryname AS intermediary_name,
+
+#                     COALESCE(i.intermediarycommisionrate, 0)
+#                         AS intermediarycommisionrate,
+
+#                     COALESCE(i.intermediarywithholdingtax, 0)
+#                         AS intermediarywithholdingtax,
+
+#                     cus.customernamebytype AS customer_name,
+
+#                     p.pushnotedrcrnotenumber AS debit_code,
+
+#                     c.customerspolicyagentbrokername AS broker_name,
+
+#                     COALESCE(sp_sum.receipted_amount, 0)
+#                         AS receipted_amount,
+
+#                     ROUND(
+#                         (COALESCE(sp_sum.receipted_amount, 0) * 0.45 / 100) + 40,
+#                         2
+#                     ) AS levies,
+
+#                     ROUND(
+#                         COALESCE(sp_sum.receipted_amount, 0) -
+#                         ((COALESCE(sp_sum.receipted_amount, 0) * 0.45 / 100) + 40),
+#                         2
+#                     ) AS available_allocation,
+
+#                     CASE
+#                         WHEN t.transactionstotalamount >
+#                              COALESCE(sp_sum.receipted_amount, 0) + 1
+#                         THEN 'Partially Paid'
+#                         ELSE 'Fully Paid'
+#                     END AS payment_status,
+
+#                     p2.primarybenefitname,
+#                     p.customerspolicycode,
+#                     p2.primarybenefitcode
+
+#                 FROM pushnote p
+
+#                 LEFT JOIN transactions t
+#                     ON p.pushnotecode = t.transactionsnumber
+
+#                 JOIN intermediary i
+#                     ON p.pushnoteagentcode = i.intermediarycode
+
+#                 JOIN customerspolicy c
+#                     ON p.customerscode = c.customerscode
+
+#                 JOIN customers cus
+#                     ON p.customerscode = cus.customerscode
+
+#                 LEFT JOIN (
+#                     SELECT
+#                         sap_payment_drcrno,
+#                         SUM(sap_payment_allocateamount) AS receipted_amount
+#                     FROM sap_payment
+#                     GROUP BY sap_payment_drcrno
+#                 ) sp_sum
+#                     ON p.pushnotedrcrnotenumber = sp_sum.sap_payment_drcrno
+
+#                 JOIN primarybenefit p2
+#                     ON p.customerspolicycode = p2.primarybenefitcode
+
+#                 WHERE p.commission_paid IS NULL OR p.commission_paid = 0
+
+#             ) sub
+#             """
+
+#             with connections['default_betterlife'].cursor() as cursor:
+#                 cursor.execute(query, params)
+#                 columns = [col[0] for col in cursor.description]
+#                 results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+#             # =========================================
+#             # ATOMIC SYNC (NO UNIQUE CONSTRAINT NEEDED)
+#             # =========================================
+
+#             with transaction.atomic():
+
+#                 debit_codes = list({
+#                     r.get("debit_code")
+#                     for r in results
+#                     if r.get("debit_code")
+#                 })
+
+#                 existing_map = {
+#                     obj.debit_code: obj
+#                     for obj in CommissionRecord.objects.filter(
+#                         debit_code__in=debit_codes
+#                     )
+#                 }
+
+#                 to_create = []
+#                 to_update = []
+
+#                 for row in results:
+
+#                     debit_code = row.get("debit_code")
+#                     obj = existing_map.get(debit_code)
+
+#                     if obj:
+
+#                         obj.push_note_code = row.get("push_note_code")
+#                         obj.transaction_number = row.get("transaction_number")
+#                         obj.policy_number = row.get("policy_number")
+#                         obj.customer_name = row.get("customer_name")
+
+#                         obj.agent_code = row.get("agent_code")
+#                         obj.customer_code = row.get("customer_code")
+
+#                         obj.intermediary_name = row.get("intermediary_name")
+#                         obj.broker_name = row.get("broker_name")
+
+#                         obj.push_note_request_date = row.get("push_note_request_date")
+
+#                         obj.receipted_amount = row.get("receipted_amount")
+#                         obj.levies = row.get("levies")
+#                         obj.available_allocation = row.get("available_allocation")
+
+#                         obj.broker_commission = row.get("broker_commission")
+#                         obj.withholding_tax = row.get("withholding_tax")
+#                         obj.commission_payable = row.get("commission_payable")
+
+#                         obj.transaction_total_amount = row.get("transaction_total_amount")
+#                         obj.payment_status = row.get("payment_status")
+
+#                         obj.primarybenefitname = row.get("primarybenefitname")
+#                         obj.customerspolicycode = row.get("customerspolicycode")
+#                         obj.primarybenefitcode = row.get("primarybenefitcode")
+
+#                         obj.updated_at = timezone.now()
+
+#                         to_update.append(obj)
+
+#                     else:
+
+#                         to_create.append(
+#                             CommissionRecord(
+#                                 push_note_code=row.get("push_note_code"),
+#                                 transaction_number=row.get("transaction_number"),
+#                                 debit_code=debit_code,
+#                                 policy_number=row.get("policy_number"),
+#                                 customer_name=row.get("customer_name"),
+
+#                                 agent_code=row.get("agent_code"),
+#                                 customer_code=row.get("customer_code"),
+
+#                                 intermediary_name=row.get("intermediary_name"),
+#                                 broker_name=row.get("broker_name"),
+
+#                                 push_note_request_date=row.get("push_note_request_date"),
+
+#                                 receipted_amount=row.get("receipted_amount"),
+#                                 levies=row.get("levies"),
+#                                 available_allocation=row.get("available_allocation"),
+
+#                                 broker_commission=row.get("broker_commission"),
+#                                 withholding_tax=row.get("withholding_tax"),
+#                                 commission_payable=row.get("commission_payable"),
+
+#                                 transaction_total_amount=row.get("transaction_total_amount"),
+#                                 payment_status=row.get("payment_status"),
+
+#                                 primarybenefitname=row.get("primarybenefitname"),
+#                                 customerspolicycode=row.get("customerspolicycode"),
+#                                 primarybenefitcode=row.get("primarybenefitcode"),
+#                             )
+#                         )
+
+#                 if to_create:
+#                     CommissionRecord.objects.bulk_create(to_create, batch_size=1000)
+
+#                 if to_update:
+#                     CommissionRecord.objects.bulk_update(
+#                         to_update,
+#                         [
+#                             "push_note_code",
+#                             "transaction_number",
+#                             "policy_number",
+#                             "customer_name",
+#                             "agent_code",
+#                             "customer_code",
+#                             "intermediary_name",
+#                             "broker_name",
+#                             "push_note_request_date",
+#                             "receipted_amount",
+#                             "levies",
+#                             "available_allocation",
+#                             "broker_commission",
+#                             "withholding_tax",
+#                             "commission_payable",
+#                             "transaction_total_amount",
+#                             "payment_status",
+#                             "primarybenefitname",
+#                             "customerspolicycode",
+#                             "primarybenefitcode",
+#                             "updated_at",
+#                         ],
+#                         batch_size=1000
+#                     )
+
+#             # =========================================
+#             # RESPONSE (PAGINATION)
+#             # =========================================
+
+#             paginator = PageNumberPagination()
+
+#             paginated = paginator.paginate_queryset(results, request, view=self)
+
+#             return paginator.get_paginated_response(paginated)
+
+#         except Exception as e:
+#             return Response(
+#                 {"success": False, "error": str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
 class AgentBrokersView(APIView):
     """ Returns agents and brokers combined with intermediary details """
 
