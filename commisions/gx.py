@@ -73,7 +73,7 @@ class CommissionRecordsView(APIView):
             where_clauses.append(f"({search_clause})")
             params.extend([f"%{search}%"] * len(search_cols))
 
-        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+        where_sql = " AND " + " AND ".join(where_clauses) if where_clauses else ""
 
         # 3. Base Query
         # We wrap in a subquery so we can order the final results without violating DISTINCT ON constraints
@@ -101,6 +101,7 @@ class CommissionRecordsView(APIView):
                 JOIN customerspolicy c
                     ON p.customerscode = c.customerscode
                 WHERE i.intermediaryname <> 'DIRECT'
+                {where_sql}
                 ORDER BY
                     p.pushnotecode,
                     p.customerscode
@@ -1620,11 +1621,36 @@ from commisions.models import CommissionRecord
 class CommissionFinancialViewPayable(APIView):
     """Returns ONLY valid fully paid commissions and syncs them atomically."""
 
+    valid_filters = {
+        "push_note_code": "sub.push_note_code",
+        "policy_number": "sub.policy_number",
+        "transaction_number": "sub.transaction_number",
+        "intermediary_name": "sub.intermediary_name",
+        "broker_name": "sub.broker_name",
+        "payment_status": "sub.payment_status",
+        "customer_name": "sub.customer_name",
+        "debit_code": "sub.debit_code",
+    }
+
     def get(self, request):
 
         try:
 
-            query = """
+            where_clauses = [
+                "sub.payment_status = 'Fully Paid'",
+                "sub.available_allocation > 1"
+            ]
+            params = []
+
+            for param, col in self.valid_filters.items():
+                val = request.query_params.get(param)
+                if val:
+                    where_clauses.append(f"{col}::text ILIKE %s")
+                    params.append(f"%{val}%")
+
+            where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+            query = f"""
             SELECT
                 sub.push_note_code,
                 sub.push_note_request_date,
@@ -1751,15 +1777,13 @@ class CommissionFinancialViewPayable(APIView):
                 WHERE
                     (p.commission_paid IS NULL OR p.commission_paid = 0)
 
-            ) sub
+             ) sub
 
-            WHERE
-                sub.payment_status = 'Fully Paid'
-                AND sub.available_allocation > 1
-            """
+             {where_sql}
+             """
 
             with connections['default_betterlife'].cursor() as cursor:
-                cursor.execute(query)
+                cursor.execute(query, params)
                 columns = [col[0] for col in cursor.description]
                 results = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
