@@ -1915,6 +1915,16 @@ class CommissionFinancialViewPayable(APIView):
                         batch_size=1000
                     )
 
+            # ==============================
+            # RESPONSE (PAGINATION)
+            # ==============================
+
+            if (
+                    request.query_params.get('paginate', '').lower() == 'false'
+                    or request.query_params.get('export', '').lower() == 'true'
+            ):
+                return Response(results)
+
             paginator = PageNumberPagination()
             paginated = paginator.paginate_queryset(results, request, view=self)
 
