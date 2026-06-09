@@ -1207,7 +1207,9 @@ FROM (
         ON p.pushnoteagentcode = i.intermediarycode  
 
     JOIN customerspolicy c  
-        ON p.customerscode = c.customerscode  
+        -- ON p.customerscode = c.customerscode  
+        -- UPDATING QUERY TO SELECT BY POLICY NUMBER INSTEAD OF CUSTOMER CODE
+        ON p.pushnotepolicynumber = c.customerspolicynumber
 
     JOIN customers cus  
         ON p.customerscode = cus.customerscode  
@@ -1760,7 +1762,10 @@ class CommissionFinancialViewPayable(APIView):
                     ON p.customerscode = c.customerscode
 
                 JOIN customers cus
-                    ON p.customerscode = cus.customerscode
+                    -- ON p.customerscode = cus.customerscode
+                    -- UPDATING QUERY TO SELECT BY POLICY NUMBER INSTEAD OF CUSTOMER CODE
+                    ON p.pushnotepolicynumber = c.customerspolicynumber
+                    
 
                 LEFT JOIN (
                     SELECT
