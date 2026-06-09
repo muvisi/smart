@@ -1762,7 +1762,7 @@ class CommissionFinancialViewPayable(APIView):
                     ON p.customerscode = c.customerscode
 
                 JOIN customers cus
-                    ON p.pushnotepolicynumber = c.customerspolicynumber
+                    ON p.pushnotepolicynumber = cus.customerspolicynumber
                     -- ABOVE UPDATING QUERY TO SELECT BY POLICY NUMBER INSTEAD OF CUSTOMER CODE
                     -- ON p.customerscode = cus.customerscode
                     
