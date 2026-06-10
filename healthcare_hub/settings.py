@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     # If you need periodic task scheduling enable this and install the package:
     # pip install django-celery-beat
     'intergration',
+    'etims',
     
 
 ]

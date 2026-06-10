@@ -91,7 +91,7 @@ class SmartRetailCopaySyncService:
         try:
             api_params = {'country': "KE", 'customerid': settings.SMART_CUSTOMER_ID}
             api_url = f"{settings.SMART_API_BASE_URL}copay/setup?{urlencode(api_params)}"
-            
+            # https://data.smartapplicationsgroup.com/api/v2/integration/copay/setup"
             res = self.session.post(
                 api_url, 
                 json=smart_payload, 

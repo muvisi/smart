@@ -23,33 +23,8 @@ app.autodiscover_tasks(['commisions']) # Add the app name explicitly
 from celery.schedules import crontab
 from datetime import timedelta
 
-# app.conf.beat_schedule = {
-#     'allocation-every-minute': {
-#         'task': 'commisions.tasks.daily_allocation_task',
-#         'schedule': crontab(minute='*'),
-#     },
-#       'smart-sync-every-2-minutes': {
-#         'task': 'intergration.tasks.run_full_smart_sync',
-#         'schedule': timedelta(seconds=120),
-#     }
-# }
 
-# app.conf.beat_schedule = {
 
-#     'smart-sync-every-2-minutes': {
-#         'task': 'intergration.tasks.run_full_smart_sync',
-#         'schedule': timedelta(seconds=120),
-#     },
-
-#     'daily-allocation-5pm': {
-#         'task': 'commisions.tasks.daily_allocation_task',
-#         'schedule': crontab(hour=17, minute=0, day_of_week='1-6'),
-#     },
-    
-
-# }
-from datetime import timedelta
-from celery.schedules import crontab
 
 app.conf.beat_schedule = {
 
