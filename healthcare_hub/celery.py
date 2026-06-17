@@ -27,6 +27,10 @@ from datetime import timedelta
 
 
 app.conf.beat_schedule = {
+     "allocation-5pm-daily": {
+        "task": "commissions.tasks.alloc_commissions_task",
+        "schedule": crontab(hour=17, minute=0),
+    },
 
     'smart-sync-every-2-minutes': {
         'task': 'tasks.run_full_smart_sync',
@@ -38,10 +42,10 @@ app.conf.beat_schedule = {
         'schedule': timedelta(seconds=120),  # every 2 minutes
     },
 
-    'daily-allocation-5pm': {
-        'task': 'tasks.daily_allocation_task',
-        'schedule': crontab(hour=17, minute=0, day_of_week='1-6'),
-    },
+    # 'daily-allocation-5pm': {
+    #     'task': 'tasks.daily_allocation_task',
+    #     'schedule': crontab(hour=17, minute=0, day_of_week='1-6'),
+    # },
 
     # -------------------------------------------------
     # Member Reset Sync Task every 2 minutes
@@ -50,62 +54,26 @@ app.conf.beat_schedule = {
         'task': 'tasks.member_reset_sync_task',
         'schedule': timedelta(seconds=120),  # every 2 minutes
     },
+    "sync-debit-credit-every-minute": {
+        "task":"etims.tasks.sync_debit_credit_notes_task",
+        "schedule": 600.0,
+    },
+
+    # -------------------------
+    # JOB 2: Send transactions
+    # -------------------------
+    "send-transactions-every-minute": {
+        "task": "etims.tasks.send_pending_transactions_task",
+        "schedule": 600.0,
+    },
+
+    # -------------------------
+    # JOB 3: Sync KRA references
+    # -------------------------
+    "sync-kra-references-every-minute": {
+        "task": "etims.tasks.sync_kra_references_task",
+        "schedule": 600.0,
+    },
 
 }
-# app.conf.beat_schedule = {
-    
-#     # --- PHASE 1: Foundations (Starts immediately at 0s) ---
-#     'sync-schemes-every-1-min': {
-#         'task': 'tasks.sync_schemes_to_smart',
-#         'schedule': timedelta(seconds=60),
-#     },
-#     'sync-categories-every-1-min': {
-#         'task': 'tasks.sync_categories_to_smart',
-#         'schedule': timedelta(seconds=60),
-#     },
-#     'sync-retail-categories-every-1-min': {
-#         'task': 'tasks.sync_retail_categories_to_smart',
-#         'schedule': timedelta(seconds=60),
-#     },
 
-#     # --- PHASE 2: Benefits (Starts at 15s offset) ---
-#     'sync-benefits-every-1-min': {
-#         'task': 'tasks.sync_benefits_to_smart',
-#         'schedule': timedelta(seconds=60),
-#         'options': {'countdown': 15}, 
-#     },
-#     'sync-retail-benefits-every-1-min': {
-#         'task': 'tasks.sync_retail_benefits_to_smart',
-#         'schedule': timedelta(seconds=60),
-#         'options': {'countdown': 15},
-#     },
-
-#     # --- PHASE 3: Members (Starts at 30s offset) ---
-#     'sync-members-every-1-min': {
-#         'task': 'tasks.sync_members_to_smart',
-#         'schedule': timedelta(seconds=60),
-#         'options': {'countdown': 30},
-#     },
-#     'sync-retail-members-every-1-min': {
-#         'task': 'tasks.sync_retail_members_to_smart',
-#         'schedule': timedelta(seconds=60),
-#         'options': {'countdown': 30},
-#     },
-
-#     # --- PHASE 4: Rules & Restrictions (Starts at 45s offset) ---
-#     'sync-waiting-periods-every-1-min': {
-#         'task': 'tasks.sync_retail_waiting_periods_to_smart',
-#         'schedule': timedelta(seconds=60),
-#         'options': {'countdown': 45},
-#     },
-#     'sync-retail-copays-every-1-min': {
-#         'task': 'tasks.sync_retail_copays_to_smart',
-#         'schedule': timedelta(seconds=60),
-#         'options': {'countdown': 45},
-#     },
-#     'sync-restrictions-every-1-min': {
-#         'task': 'tasks.sync_provider_restrictions_to_smart',
-#         'schedule': timedelta(seconds=60),
-#         'options': {'countdown': 45},
-#     },
-# }

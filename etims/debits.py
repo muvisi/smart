@@ -12,11 +12,14 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
+
+
 from .models import DebitCredit
 
 
 @api_view(['GET'])
 def sync_debit_credit_notes(request):
+
     query = """
     SELECT
         p.pushnotedrcrnotenumber AS "debitCreditRef",
@@ -41,6 +44,7 @@ def sync_debit_credit_notes(request):
         ON p.pushnotecode = pt.pushnotecode
     LEFT JOIN transactions t
         ON t.transactionscode = pt.transactionscode
+    WHERE p.pushnoteetimsiskraposted IS NOT TRUE
     """
 
     try:
@@ -52,11 +56,15 @@ def sync_debit_credit_notes(request):
 
         created_count = 0
         updated_count = 0
+        processed_refs = []
 
         with transaction.atomic():
             for row in rows:
+
+                debit_ref = row["debitCreditRef"]
+
                 _, created = DebitCredit.objects.update_or_create(
-                    debit_credit_reference=row["debitCreditRef"],
+                    debit_credit_reference=debit_ref,
                     defaults={
                         "source_pushnote_code": row["uniqueRef"],
                         "transaction_code": row["transactionCode"],
@@ -71,24 +79,109 @@ def sync_debit_credit_notes(request):
                 else:
                     updated_count += 1
 
-        return Response(
-            {
-                "success": True,
-                "created": created_count,
-                "updated": updated_count,
-                "total_processed": len(rows)
-            },
-            status=status.HTTP_200_OK
-        )
+                processed_refs.append(debit_ref)
+
+        # -----------------------------------
+        # BACK UPDATE external DB (mark as posted)
+        # -----------------------------------
+        if processed_refs:
+            with connections['default_betterlife'].cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE pushnote
+                    SET pushnoteetimsiskraposted = true
+                    WHERE pushnotedrcrnotenumber = ANY(%s)
+                    """,
+                    [processed_refs]
+                )
+
+        return Response({
+            "success": True,
+            "created": created_count,
+            "updated": updated_count,
+            "total_processed": len(rows)
+        }, status=status.HTTP_200_OK)
 
     except Exception as e:
-        return Response(
-            {
-                "success": False,
-                "error": str(e)
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return Response({
+            "success": False,
+            "error": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# @api_view(['GET'])
+# def sync_debit_credit_notes(request):
+#     query = """
+#     SELECT
+#         p.pushnotedrcrnotenumber AS "debitCreditRef",
+#         c.customerskrapin AS "clientPin",
+#         p.pushnotecode AS "uniqueRef",
+#         pt.transactionscode AS "transactionCode",
+#         t.transactionstotalamount AS "transactionTotalAmount",
+#         CASE
+#             WHEN c.customersname IS NOT NULL
+#                  AND TRIM(c.customersname) <> ''
+#             THEN c.customersname
+#             ELSE TRIM(
+#                 COALESCE(c.customersfirstname, '') || ' ' ||
+#                 COALESCE(c.customerssecondname, '') || ' ' ||
+#                 COALESCE(c.customerslastname, '')
+#             )
+#         END AS "clientName"
+#     FROM pushnote p
+#     LEFT JOIN customers c
+#         ON p.customerscode = c.customerscode
+#     LEFT JOIN pushnotetransaction pt
+#         ON p.pushnotecode = pt.pushnotecode
+#     LEFT JOIN transactions t
+#         ON t.transactionscode = pt.transactionscode
+#     """
+
+#     try:
+#         with connections['default_betterlife'].cursor() as cursor:
+#             cursor.execute(query)
+
+#             columns = [col[0] for col in cursor.description]
+#             rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+#         created_count = 0
+#         updated_count = 0
+
+#         with transaction.atomic():
+#             for row in rows:
+#                 _, created = DebitCredit.objects.update_or_create(
+#                     debit_credit_reference=row["debitCreditRef"],
+#                     defaults={
+#                         "source_pushnote_code": row["uniqueRef"],
+#                         "transaction_code": row["transactionCode"],
+#                         "client_pin": row["clientPin"],
+#                         "client_name": row["clientName"],
+#                         "transaction_total_amount": row["transactionTotalAmount"],
+#                     }
+#                 )
+
+#                 if created:
+#                     created_count += 1
+#                 else:
+#                     updated_count += 1
+
+#         return Response(
+#             {
+#                 "success": True,
+#                 "created": created_count,
+#                 "updated": updated_count,
+#                 "total_processed": len(rows)
+#             },
+#             status=status.HTTP_200_OK
+#         )
+
+#     except Exception as e:
+#         return Response(
+#             {
+#                 "success": False,
+#                 "error": str(e)
+#             },
+#             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#         )
 class DebitCreditAPIView(APIView):
 
     def get(self, request):
@@ -141,12 +234,6 @@ class DebitCreditListAPIView(APIView):
         return Response(serializer.data)
     
     
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework import status
-
-# from .models import DebitCredit
-# from .services.etims_service import create_medical_tax_transaction
 
 
 class PushToEtimsAPIView(APIView):
