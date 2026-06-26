@@ -56,7 +56,7 @@ app.conf.beat_schedule = {
     },
     "sync-debit-credit-every-minute": {
         "task":"etims.tasks.sync_debit_credit_notes_task",
-        "schedule": 60.0,
+        "schedule": timedelta(seconds=60)
     },
 
     # -------------------------
@@ -64,7 +64,7 @@ app.conf.beat_schedule = {
     # -------------------------
     "send-transactions-every-minute": {
         "task": "etims.tasks.send_pending_transactions_task",
-        "schedule": 120.0,
+        "schedule": timedelta(seconds=120)
     },
 
     # -------------------------
@@ -72,7 +72,7 @@ app.conf.beat_schedule = {
     # -------------------------
     "sync-kra-references-every-minute": {
         "task": "etims.tasks.sync_kra_references_task",
-        "schedule": 600.0,
+        "schedule": timedelta(seconds=120)
     },
 
 }
