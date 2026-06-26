@@ -56,7 +56,7 @@ app.conf.beat_schedule = {
     },
     "sync-debit-credit-every-minute": {
         "task":"etims.tasks.sync_debit_credit_notes_task",
-        "schedule": 600.0,
+        "schedule": 60.0,
     },
 
     # -------------------------
@@ -64,7 +64,7 @@ app.conf.beat_schedule = {
     # -------------------------
     "send-transactions-every-minute": {
         "task": "etims.tasks.send_pending_transactions_task",
-        "schedule": 600.0,
+        "schedule": 120.0,
     },
 
     # -------------------------
