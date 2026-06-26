@@ -3,7 +3,9 @@
 import requests
 
 
-ETIMS_BASE_URL = "http://192.168.0.250:9090/etimsuat"
+# ETIMS_BASE_URL = "http://192.168.0.250:9090/etimsuat"
+ETIMS_BASE_URL = "http://192.168.0.100:8080/etimsprod"
+
 
 
 def create_medical_tax_transaction(payload):
