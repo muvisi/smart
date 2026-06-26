@@ -126,33 +126,35 @@ from django.db import connections, transaction
 
 @shared_task
 def sync_debit_credit_notes_task():
-
     query = """
-    SELECT
-        p.pushnotedrcrnotenumber AS "debitCreditRef",
-        c.customerskrapin AS "clientPin",
-        p.pushnotecode AS "uniqueRef",
-        pt.transactionscode AS "transactionCode",
-        t.transactionstotalamount AS "transactionTotalAmount",
-        CASE
-            WHEN c.customersname IS NOT NULL
-                 AND TRIM(c.customersname) <> ''
-            THEN c.customersname
-            ELSE TRIM(
-                COALESCE(c.customersfirstname, '') || ' ' ||
-                COALESCE(c.customerssecondname, '') || ' ' ||
-                COALESCE(c.customerslastname, '')
-            )
-        END AS "clientName"
-    FROM pushnote p
-    LEFT JOIN customers c
-        ON p.customerscode = c.customerscode
-    LEFT JOIN pushnotetransaction pt
-        ON p.pushnotecode = pt.pushnotecode
-    LEFT JOIN transactions t
-        ON t.transactionscode = pt.transactionscode
-    WHERE p.pushnoteetimsiskraposted IS NOT TRUE
-    """
+            SELECT
+                p.pushnotedrcrnotenumber AS "debitCreditRef",
+                c.customerskrapin AS "clientPin",
+                p.pushnotecode AS "uniqueRef",
+                pt.transactionscode AS "transactionCode",
+                t.transactionstotalamount AS "transactionTotalAmount",
+                CASE
+                    WHEN c.customersname IS NOT NULL
+                        AND TRIM(c.customersname) <> ''
+                    THEN c.customersname
+                    ELSE TRIM(
+                        COALESCE(c.customersfirstname, '') || ' ' ||
+                        COALESCE(c.customerssecondname, '') || ' ' ||
+                        COALESCE(c.customerslastname, '')
+                    )
+                END AS "clientName"
+            FROM pushnote p
+            LEFT JOIN customers c
+                ON p.customerscode = c.customerscode
+            LEFT JOIN pushnotetransaction pt
+                ON p.pushnotecode = pt.pushnotecode
+            LEFT JOIN transactions t
+                ON t.transactionscode = pt.transactionscode
+            WHERE p.pushnoteetimsiskraposted IS NOT TRUE
+            AND (p.pushnotestatus IS NULL OR p.pushnotestatus <> 'ERROR')
+"""
+
+    
 
     try:
         with connections['default_betterlife'].cursor() as cursor:
