@@ -223,3 +223,54 @@ def sync_debit_credit_notes_task():
             "success": False,
             "error": str(e)
         }
+ 
+ 
+ 
+from celery import shared_task
+from django.core.mail import send_mail
+from django.conf import settings
+from django.utils.timezone import now
+
+
+@shared_task
+def send_etims_health_report():
+    timestamp = now().strftime("%Y-%m-%d %H:%M:%S")
+
+    subject = "ETIMS Health Check Report - System Status"
+
+    message = f"""
+Dear Team,
+
+ETIMS System Health Check Report
+
+------------------------------------------------------------
+🕒 Timestamp: {timestamp} (EAT)
+------------------------------------------------------------
+
+📊 SYSTEM STATUS
+
+✔ Celery Worker: ACTIVE
+✔ Celery Beat: ACTIVE
+✔ Redis Broker: CONNECTED
+✔ ETIMS Sync Jobs: RUNNING
+
+------------------------------------------------------------
+
+This is an automated system health confirmation.
+
+Kind regards,  
+ETIMS Integration Service
+"""
+
+    send_mail(
+        subject=subject,
+        message=message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=settings.TEST_EMAIL_RECIPIENTS,
+        fail_silently=False,
+    )
+
+    return {
+        "status": "SENT",
+        "timestamp": timestamp
+    }

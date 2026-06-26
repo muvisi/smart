@@ -74,6 +74,10 @@ app.conf.beat_schedule = {
         "task": "etims.tasks.sync_kra_references_task",
         "schedule": timedelta(seconds=120)
     },
+      "etims-health-report-every-minute": {
+        "task": "etims.tasks.send_etims_health_report",
+        "schedule": timedelta(minutes=1),
+    }
 
 }
 

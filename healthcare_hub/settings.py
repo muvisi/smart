@@ -307,7 +307,7 @@ EMAIL_HOST_PASSWORD = 'N!271111535161oz'
 # EMAIL_HOST_PASSWORD = 'J/255829358595ub'
 
 # For test, send to your email
-TEST_EMAIL_RECIPIENTS = ['mwangangimuvisi@gmail.com']
+TEST_EMAIL_RECIPIENTS = ['mwangangimuvisi@gmail.com','developers@madison.co.ke','ict@madison.co.ke']
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
