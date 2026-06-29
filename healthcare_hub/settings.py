@@ -11,10 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 from decouple import config
 from pathlib import Path
-# LDAP (python-ldap) removed because it may not be installed in all environments.
-# If you need LDAP functionality use `ldap3` and configure it in your app code.
-# import ldap
-# from django_auth_ldap.config import LDAPSearch
+
 
 import os
 SECRET_KEY = config('SECRET_KEY')
@@ -51,9 +48,7 @@ INSTALLED_APPS = [
     'trigger',
     'reports',
     'commisions',
-    # 'django_celery_beat',  # commented out to avoid import errors when package is not installed
-    # If you need periodic task scheduling enable this and install the package:
-    # pip install django-celery-beat
+ 
     'intergration',
     'etims',
     
@@ -162,44 +157,6 @@ DATABASES = {
 },
 }
 
-# DATABASES = {
-    
-#         'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'localdb',
-#         'USER': 'smart_user',
-#         'PASSWORD': 'SmartPass123!',
-#         'HOST': '127.0.0.1',
-#         'PORT': '5432',
-    
-#     },
-#     # 'external_mssql': {
-#     #     'ENGINE': 'mssql',
-#     #     'NAME': 'healthcaredb',
-#     #     'USER': 'app_user',
-#     #     # 'PASSWORD': 'M@dison@!0',
-#     #     'PASSWORD': 'H@1sDb_22',
-#     #     'HOST': '192.168.0.160',  # IP of the SQL Server
-#     #     'PORT': '1433',  
-#     #     'OPTIONS': {
-#     #         'driver': 'ODBC Driver 18 for SQL Server',
-#     #         'extra_params': 'TrustServerCertificate=yes',
-#     #     },
-#     # }
-#      'external_mssql': {
-#         'ENGINE': 'mssql',
-#         'NAME': 'healthcaredb',
-#         'USER': 'app_user',
-#         'PASSWORD': 'M@dison@!0',
-#         'HOST': '192.168.0.110',  # IP of the SQL Server
-#         'PORT': '1433',  
-#         'OPTIONS': {
-#             'driver': 'ODBC Driver 18 for SQL Server',
-#             'extra_params': 'TrustServerCertificate=yes',
-#         },
-#     }
-# }
-
 
 
 REST_FRAMEWORK = {
@@ -229,25 +186,6 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
-
-# LOGGING = {
-#     "version": 1,
-#     "disable_existing_loggers": False,
-#     "handlers": {
-#         "smart_file": {
-#             "level": "INFO",
-#             "class": "logging.FileHandler",
-#             "filename": "logs/smart_sync.log",
-#         },
-#     },
-#     "loggers": {
-#         "smart": {
-#             "handlers": ["smart_file"],
-#             "level": "INFO",
-#             "propagate": True,
-#         },
-#     },
-# }
 
 
 
@@ -303,10 +241,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'haisnotifications@madison.co.ke'
 EMAIL_HOST_PASSWORD = 'N!271111535161oz'
 
-# EMAIL_HOST_USER = 'betterlives@madison.co.ke'
-# EMAIL_HOST_PASSWORD = 'J/255829358595ub'
 
-# For test, send to your email
 TEST_EMAIL_RECIPIENTS = ['mwangangimuvisi@gmail.com','developers@madison.co.ke','ict@madison.co.ke']
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 

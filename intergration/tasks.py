@@ -1,5 +1,3 @@
-
-
 from celery import shared_task, chain
 import logging
 
@@ -17,21 +15,17 @@ from intergration.Retail.members import SmartRetailMemberSyncService
 from intergration.Retail.waitingperiods import SmartRetailWaitingPeriodSyncService
 from intergration.recon import SmartMemberResetService
 
-
 logger = logging.getLogger(__name__)
 
 
 # -----------------------------
 # CORPORATE TASKS
 # -----------------------------
-@shared_task(bind=True,name="tasks.member_reset_sync_task")
+
+@shared_task(bind=True, name="tasks.member_reset_sync_task")
 def member_reset_sync_task(self):
-    """
-    Celery task to reset member sync flags every 5 minutes.
-    """
     service = SmartMemberResetService()
-    stats = service.run_member_reset_sync(batch_size=25)
-    return stats
+    return service.run_member_reset_sync(batch_size=25)
 
 
 @shared_task(name="tasks.sync_schemes_to_smart")
@@ -78,6 +72,28 @@ def sync_members_task():
         return {"status": "error", "message": str(e)}
 
 
+@shared_task(bind=True, name="tasks.corp_copay_sync_task")
+def corp_copay_sync_task(self):
+    logger.info("Task Started: corp_copay_sync_task")
+    try:
+        service = SmartCorpCopaySyncService()
+        return service.run_sync()
+    except Exception as e:
+        logger.error(f"Task Failed: corp_copay_sync_task - {str(e)}")
+        raise
+
+
+@shared_task(name="tasks.sync_provider_restrictions_to_smart")
+def sync_provider_restrictions_task():
+    logger.info("Task Started: sync_provider_restrictions_to_smart")
+    try:
+        service = SmartProviderRestrictionSyncService()
+        return service.run_restriction_sync()
+    except Exception as e:
+        logger.error(f"Task Failed: sync_provider_restrictions_to_smart - {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
 # -----------------------------
 # RETAIL TASKS
 # -----------------------------
@@ -87,24 +103,20 @@ def sync_retail_categories_task():
     logger.info("Task Started: sync_retail_categories_to_smart")
     try:
         service = SmartRetailCategorySyncService()
-        result = service.run_retail_category_sync()
-        logger.info(f"Task Completed: {result}")
-        return result
+        return service.run_retail_category_sync()
     except Exception as e:
-        logger.error(f"Task Exception: {str(e)}")
+        logger.error(f"Task Failed: sync_retail_categories_to_smart - {str(e)}")
         return {"status": "error", "message": str(e)}
 
 
 @shared_task(name="tasks.sync_retail_benefits_to_smart")
-def sync_retail_benefits_task(hais_token=None):
+def sync_retail_benefits_task():
     logger.info("Task Started: sync_retail_benefits_to_smart")
     try:
         service = SmartRetailBenefitSyncService()
-        result = service.run_benefit_sync(hais_token)
-        logger.info(f"Task Finished: {result}")
-        return result
+        return service.run_benefit_sync()
     except Exception as e:
-        logger.error(f"Task Failed: {str(e)}")
+        logger.error(f"Task Failed: sync_retail_benefits_to_smart - {str(e)}")
         return {"status": "error", "message": str(e)}
 
 
@@ -113,11 +125,9 @@ def sync_retail_members_task():
     logger.info("Task Started: sync_retail_members_to_smart")
     try:
         service = SmartRetailMemberSyncService()
-        result = service.run_retail_member_sync()
-        logger.info(f"Task Completed: {result}")
-        return result
+        return service.run_retail_member_sync()
     except Exception as e:
-        logger.error(f"Task Exception: {str(e)}")
+        logger.error(f"Task Failed: sync_retail_members_to_smart - {str(e)}")
         return {"status": "error", "message": str(e)}
 
 
@@ -126,11 +136,9 @@ def sync_retail_waiting_periods_task():
     logger.info("Task Started: sync_retail_waiting_periods_to_smart")
     try:
         service = SmartRetailWaitingPeriodSyncService()
-        result = service.run_retail_waiting_period_sync()
-        logger.info(f"Task Completed: {result}")
-        return result
+        return service.run_retail_waiting_period_sync()
     except Exception as e:
-        logger.error(f"Task Exception: {str(e)}")
+        logger.error(f"Task Failed: sync_retail_waiting_periods_to_smart - {str(e)}")
         return {"status": "error", "message": str(e)}
 
 
@@ -145,72 +153,45 @@ def sync_retail_copays_task():
         return {"status": "error", "message": str(e)}
 
 
-@shared_task(name="tasks.sync_provider_restrictions_to_smart")
-def sync_provider_restrictions_task():
-    logger.info("Task Started: sync_provider_restrictions_to_smart")
-    try:
-        service = SmartProviderRestrictionSyncService()
-        result = service.run_restriction_sync()
-        logger.info(f"Task Completed: {result}")
-        return result
-    except Exception as e:
-        logger.error(f"Task Exception: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-
 # ---------------------------------------------------
-# MASTER ORCHESTRATION TASK (SEQUENTIAL PIPELINE)
+# MASTER ORCHESTRATION TASK
 # ---------------------------------------------------
-@shared_task(bind=True, name="tasks.corp_copay_sync_task")
-def corp_copay_sync_task(self):
-    """
-    Celery task to sync corporate copays to SMART.
-    Runs in batches from MSSQL → SMART → updates sync status + logs.
-    """
-    try:
-        service = SmartCorpCopaySyncService()
-        stats = service.run_sync()
 
-        logger.info(f"✅ Corp Copay Sync Task Completed: {stats}")
-        return stats
-
-    except Exception as e:
-        logger.error(f"❌ Corp Copay Sync Task Failed: {e}")
-        raise
 @shared_task(name="tasks.run_full_smart_sync")
 def run_full_smart_sync():
-    """
-    Master sync pipeline ensuring correct dependency order.
-    """
-
     logger.info("Starting FULL SMART Sync Pipeline")
 
     workflow = chain(
+        # 1. Reset sync flags first
+        member_reset_sync_task.si(),
 
-        # Phase 1: Foundations
-        sync_schemes_task.s(),
+        # 2. Foundations
+        sync_schemes_task.si(),
 
-        # Phase 2: Categories
-        sync_categories_task.s(),
-        sync_retail_categories_task.s(),
+        # 3. Categories
+        sync_categories_task.si(),
+        sync_retail_categories_task.si(),
 
-        # Phase 3: Benefits
-        sync_benefits_task.s(),
-        sync_retail_benefits_task.s(),
-        # corp_copay_sync_task.s(),
+        # 4. Benefits
+        sync_benefits_task.si(),
+        sync_retail_benefits_task.si(),
 
-        # Phase 4: Members
-        sync_members_task.s(),
-        sync_retail_members_task.s(),
+        # 5. Copays
+        corp_copay_sync_task.si(),
+        sync_retail_copays_task.si(),
 
-        # Phase 5: Rules / Restrictions
-        sync_retail_waiting_periods_task.s(),
-        sync_retail_copays_task.s(),
-        sync_provider_restrictions_task.s(),
+        # 6. Members
+        sync_members_task.si(),
+        sync_retail_members_task.si(),
 
+        # 7. Rules / Restrictions
+        sync_retail_waiting_periods_task.si(),
+        sync_provider_restrictions_task.si(),
     )
 
-    workflow.apply_async()
+    result = workflow.apply_async()
 
-    return {"status": "pipeline_started"}
-
+    return {
+        "status": "pipeline_started",
+        "chain_id": result.id,
+    }
