@@ -5,13 +5,15 @@ import requests
 
 # ETIMS_BASE_URL = "http://192.168.0.250:9090/etimsuat"
 ETIMS_BASE_URL = "http://192.168.0.100:8080/etimsprod"
+MEDICAL_TAX_TRANSACTION_URL = f"{ETIMS_BASE_URL}/medicalTaxTrans"
 
 
 
-def create_medical_tax_transaction(payload):
-    url = f"{ETIMS_BASE_URL}/medicalTaxTrans"
-    response = requests.post(url, json=payload, timeout=30)
+def create_medical_tax_transaction(payload, return_http_response=False):
+    response = requests.post(MEDICAL_TAX_TRANSACTION_URL, json=payload, timeout=30)
     response.raise_for_status()
+    if return_http_response:
+        return response
     return response.json()
 
 

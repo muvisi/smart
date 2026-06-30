@@ -25,3 +25,37 @@ class DebitCredit(models.Model):
 
     def __str__(self):
         return self.debit_credit_reference
+
+
+class EtimsTransactionLog(models.Model):
+    STATUS_CHOICES = (
+        ("PENDING", "Pending"),
+        ("SUCCESS", "Success"),
+        ("FAILED", "Failed"),
+    )
+
+    debit_credit = models.ForeignKey(
+        DebitCredit,
+        on_delete=models.CASCADE,
+        related_name="etims_logs",
+    )
+    request_url = models.URLField(max_length=500)
+    request_payload = models.JSONField()
+    response_payload = models.JSONField(null=True, blank=True)
+    response_status_code = models.PositiveIntegerField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="PENDING",
+        db_index=True,
+    )
+    error_message = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "etims_transaction_logs"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.debit_credit.debit_credit_reference} - {self.status}"

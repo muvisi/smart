@@ -2,8 +2,21 @@ from celery import shared_task
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import DebitCredit
-from .services import create_medical_tax_transaction
+from .models import DebitCredit, EtimsTransactionLog
+from .services import MEDICAL_TAX_TRANSACTION_URL, create_medical_tax_transaction
+
+
+def _exception_response(exception):
+    response = getattr(exception, "response", None)
+    if response is None:
+        return None, None
+
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {"body": response.text}
+
+    return response.status_code, payload
 
 
 @shared_task
@@ -31,8 +44,31 @@ def send_pending_transactions_task():
             "originalReference": None
         }
 
+        log = EtimsTransactionLog.objects.create(
+            debit_credit=obj,
+            request_url=MEDICAL_TAX_TRANSACTION_URL,
+            request_payload=payload,
+        )
+
         try:
-            response = create_medical_tax_transaction(payload)
+            http_response = create_medical_tax_transaction(
+                payload,
+                return_http_response=True,
+            )
+            response = http_response.json()
+
+            log.response_payload = response
+            log.response_status_code = http_response.status_code
+            log.status = "SUCCESS"
+            log.completed_at = timezone.now()
+            log.save(
+                update_fields=[
+                    "response_payload",
+                    "response_status_code",
+                    "status",
+                    "completed_at",
+                ]
+            )
 
             obj.etims_status = "SENT"
             obj.last_synced_at = timezone.now()
@@ -43,6 +79,21 @@ def send_pending_transactions_task():
             processed_count += 1
 
         except Exception as e:
+            response_status_code, response_payload = _exception_response(e)
+            log.response_status_code = response_status_code
+            log.response_payload = response_payload
+            log.status = "FAILED"
+            log.error_message = str(e)
+            log.completed_at = timezone.now()
+            log.save(
+                update_fields=[
+                    "response_status_code",
+                    "response_payload",
+                    "status",
+                    "error_message",
+                    "completed_at",
+                ]
+            )
 
             obj.etims_status = "FAILED"
             obj.last_error = str(e)
