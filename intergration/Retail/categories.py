@@ -72,6 +72,7 @@ class SmartSyncService:
             'customerid': settings.SMART_CUSTOMER_ID
         }
 
+
         # 1. API Post
         try:
             api_url = f"{settings.SMART_API_BASE_URL}benefitCategories?{urlencode(payload)}"

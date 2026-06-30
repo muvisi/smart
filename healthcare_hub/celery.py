@@ -42,7 +42,7 @@ app.conf.beat_schedule = {
 
     "etims-health-report-every-2-minutes": {
         "task": "etims.tasks.send_etims_health_report",
-        "schedule": timedelta(minutes=2),
+        "schedule": timedelta(hours=6),
     },
 
     
