@@ -1255,24 +1255,34 @@ FROM (
                 columns = [col[0] for col in cursor.description]
                 results = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-            if request.query_params.get('paginate', '').lower() == 'false':
-                return Response({
-                    "success": True,
-                    "data": results
-                })
-
-            paginator = PageNumberPagination()
-            paginated = paginator.paginate_queryset(results, request, view=self)
-
             return Response({
                 "success": True,
                 "pagination": {
-                    "count": paginator.page.paginator.count,
-                    "next": paginator.get_next_link(),
-                    "previous": paginator.get_previous_link(),
+                    "count": len(results),
+                    "next": None,
+                    "previous": None,
                 },
-                "results": paginated
+                "results": results
             })
+
+            # if request.query_params.get('paginate', '').lower() == 'false':
+            #     return Response({
+            #         "success": True,
+            #         "data": results
+            #     })
+            #
+            # paginator = PageNumberPagination()
+            # paginated = paginator.paginate_queryset(results, request, view=self)
+            #
+            # return Response({
+            #     "success": True,
+            #     "pagination": {
+            #         "count": paginator.page.paginator.count,
+            #         "next": paginator.get_next_link(),
+            #         "previous": paginator.get_previous_link(),
+            #     },
+            #     "results": paginated
+            # })
 
         except Exception as e:
             return Response(
