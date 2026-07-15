@@ -1769,7 +1769,7 @@ class CommissionFinancialViewPayable(APIView):
                 LEFT JOIN (
                     SELECT
                         sap_payment_drcrno,
-                        SUM(sap_payment_allocateamount) AS receipted_amount
+                        SUM(sap_payment_amount) AS receipted_amount
                     FROM sap_payment
                     GROUP BY sap_payment_drcrno
                 ) sp_sum
@@ -1939,6 +1939,11 @@ class CommissionFinancialViewPayable(APIView):
                 {"success": False, "error": str(e)},
                 status=500
             )
+            
+            
+            
+            
+            
 # class CommissionFinancialViewPayable(APIView):
 #     """Returns commission financial breakdown + atomic sync to CommissionRecord."""
 

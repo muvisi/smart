@@ -164,6 +164,7 @@ class SyncHaisMembersView(APIView):
                     "customerid": settings.SMART_CUSTOMER_ID,
                     "roamingCountries": settings.COUNTRY_CODE
                 }
+                
 
                 smart_url = f"{settings.SMART_API_BASE_URL}members?{urlencode(payload)}"
                 smart_resp = requests.post(

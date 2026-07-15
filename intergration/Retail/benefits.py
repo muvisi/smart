@@ -103,6 +103,8 @@ class SmartRetailBenefitSyncService:
             'countrycode': "KE",
             'customerid': settings.SMART_CUSTOMER_ID
         }
+        
+        
 
         # 1. API Post to SMART
         try:

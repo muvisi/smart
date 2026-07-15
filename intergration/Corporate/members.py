@@ -101,6 +101,31 @@ class SmartCorporateMemberSyncService:
             'customerid': settings.SMART_CUSTOMER_ID,
             'roamingCountries': "KE"
         }
+        
+        {
+# "csIntegSchemeCode":"10002741",
+# "csIntegMemberNumber":"SME/7231/1",
+# "csStaffNumber":"",
+# "csFamilyCode":"SME/7231",
+# "csIntegCatCode":"CAT A-1",
+# "csMemType":"P",
+# "csSurname":"ASHFORD",
+# "csSecondName":"KIPTOO",
+# "csOtherNames":"",
+# "csFirstName":"RONAN",
+# "csIdNumber":"28975431",
+# "csDob":"1988-06-09",
+# "csGender":"M",
+# "csNhifNumber":"",
+# "csSchemeStartDate":"2026-06-29",
+# "csSchemeEndDate":"2027-06-28",
+# "csAddedBy":"blair.milimo",
+# "csRoamingCountries":"KE",
+# "csCountry":"KE",
+# "csPhoneNumber1":"0718456723",
+# "csKinEmail":"RONAN.ASHFORD@PINNACLEDIGITAL.CO.KE",
+# "csJoinDate":"2026-06-29"
+},
 
         # 2. API Call (Outside Transaction)
         res_data = {}

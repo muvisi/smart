@@ -44,10 +44,17 @@ app.conf.beat_schedule = {
         "task": "etims.tasks.send_etims_health_report",
         "schedule": timedelta(hours=6),
     },
-    "smart-full-sync-every-10-minutes": {
-        "task": "tasks.run_full_smart_sync",
-        "schedule": timedelta(minutes=10),
-    }
+
+    # Commission allocations
+    "commission-allocation-1st-and-15th-11pm": {
+        "task": "commisions.tasks.alloc_commissions_task",
+        "schedule": crontab(minute=0, hour=23, day_of_month="1,15"),
+    },
+
+    "commission-allocation-allowed-days-5pm": {
+        "task": "commisions.tasks.alloc_commissions_task",
+        "schedule": crontab(minute=0, hour=17, day_of_month="4-14,18-31"),
+    },
 
     
 }

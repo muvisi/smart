@@ -70,6 +70,19 @@ class SmartSyncService:
                         'countryCode': "KE",
                         'customerid': settings.SMART_CUSTOMER_ID
                     }
+                    
+                                # {
+            # "companyName":"HealthGuard Retail",
+            # "clnPolCode":"100069",
+            # "startDate":"2026-06-29",
+            # "endDate":"2027-06-28",
+            # "polTypeId":2,
+            # "userId":"blair.milimo",
+            # "countryCode":"KE",
+            # "policyCurrencyId":"KES",
+            # "anniv":1,
+            # "customerid":"MADC4C23E75B49A1820A604CBE8EQAKE"
+                    # }
 
                     # Prepare Audit Log
                     sync_log = ApiSyncLog(
