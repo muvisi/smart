@@ -1090,6 +1090,7 @@ class CommissionFinancialViewPaid(APIView):
         "payment_status": "sub.payment_status",
         "customer_name": "sub.customer_name",
         "debit_code": "sub.debit_code",
+        "paid_at": "sub.paid_at",
     }
 
     def get(self, request):
@@ -1100,8 +1101,24 @@ class CommissionFinancialViewPaid(APIView):
         for param, col in self.valid_filters.items():
             val = request.query_params.get(param)
             if val:
-                where_clauses.append(f"{col}::text ILIKE %s")
-                params.append(f"%{val}%")
+                if param == "paid_at":
+                    where_clauses.append("LEFT(sub.paid_at, 10) = %s")
+                    params.append(val)
+                else:
+                    where_clauses.append(f"{col}::text ILIKE %s")
+                    params.append(f"%{val}%")
+
+        start_date = request.query_params.get("start_date")
+        end_date = request.query_params.get("end_date")
+        if start_date and end_date:
+            where_clauses.append("LEFT(sub.paid_at, 10) BETWEEN %s AND %s")
+            params.extend([start_date, end_date])
+        elif start_date:
+            where_clauses.append("LEFT(sub.paid_at, 10) >= %s")
+            params.append(start_date)
+        elif end_date:
+            where_clauses.append("LEFT(sub.paid_at, 10) <= %s")
+            params.append(end_date)
 
         where_sql = ""
         if where_clauses:
@@ -1238,24 +1255,34 @@ FROM (
                 columns = [col[0] for col in cursor.description]
                 results = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-            if request.query_params.get('paginate', '').lower() == 'false':
-                return Response({
-                    "success": True,
-                    "data": results
-                })
-
-            paginator = PageNumberPagination()
-            paginated = paginator.paginate_queryset(results, request, view=self)
-
             return Response({
                 "success": True,
                 "pagination": {
-                    "count": paginator.page.paginator.count,
-                    "next": paginator.get_next_link(),
-                    "previous": paginator.get_previous_link(),
+                    "count": len(results),
+                    "next": None,
+                    "previous": None,
                 },
-                "results": paginated
+                "results": results
             })
+
+            # if request.query_params.get('paginate', '').lower() == 'false':
+            #     return Response({
+            #         "success": True,
+            #         "data": results
+            #     })
+            #
+            # paginator = PageNumberPagination()
+            # paginated = paginator.paginate_queryset(results, request, view=self)
+            #
+            # return Response({
+            #     "success": True,
+            #     "pagination": {
+            #         "count": paginator.page.paginator.count,
+            #         "next": paginator.get_next_link(),
+            #         "previous": paginator.get_previous_link(),
+            #     },
+            #     "results": paginated
+            # })
 
         except Exception as e:
             return Response(
@@ -1923,16 +1950,18 @@ class CommissionFinancialViewPayable(APIView):
             # RESPONSE (PAGINATION)
             # ==============================
 
-            if (
-                    request.query_params.get('paginate', '').lower() == 'false'
-                    or request.query_params.get('export', '').lower() == 'true'
-            ):
-                return Response(results)
+            return Response(results)
 
-            paginator = PageNumberPagination()
-            paginated = paginator.paginate_queryset(results, request, view=self)
-
-            return paginator.get_paginated_response(paginated)
+            # if (
+            #         request.query_params.get('paginate', '').lower() == 'false'
+            #         or request.query_params.get('export', '').lower() == 'true'
+            # ):
+            #     return Response(results)
+            #
+            # paginator = PageNumberPagination()
+            # paginated = paginator.paginate_queryset(results, request, view=self)
+            #
+            # return paginator.get_paginated_response(paginated)
 
         except Exception as e:
             return Response(
