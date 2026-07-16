@@ -1,18 +1,13 @@
-
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import include, path
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('engine/', include('engine.urls')),
-    path('api/account/', include('users.urls')),  # Users CRUD APIs
+    path("admin/", admin.site.urls),
+    path("engine/", include("engine.urls")),
+    path("api/account/", include("users.urls")),
     path("api/trigger/", include("trigger.urls")),
-    path('api/report/', include('reports.urls')),  # 👈 register report app here
-    path('api/commisions/', include('commisions.urls')),  # 👈 register report app here
-    path('api/etims/', include('etims.urls')),  # 👈 register report app here
-
-
-
-
-
+    path("api/report/", include("reports.urls")),
+    path("api/commisions/", include("commisions.urls")),
+    path("api/etims/", include("etims.urls")),
+    path("api/gxsmartinteg/", include("gxsmartinteg.urls")),
 ]

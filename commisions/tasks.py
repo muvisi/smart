@@ -2,7 +2,6 @@ from django.shortcuts import render
 from django.core.mail import EmailMessage
 from django.http import JsonResponse
 from django.db import connections, transaction
-import calendar
 from datetime import datetime, timedelta
 from email.mime.image import MIMEImage
 from pathlib import Path
@@ -24,24 +23,6 @@ def attach_madison_logo(email):
         logo.add_header("Content-ID", f"<{LOGO_CID}>")
         logo.add_header("Content-Disposition", "inline", filename="logo.jpeg")
         email.attach(logo)
-
-
-def ordinal_day(day):
-    if 10 <= day % 100 <= 20:
-        suffix = "th"
-    else:
-        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
-    return f"{day}{suffix}"
-
-
-def get_allocation_period(run_date):
-    month_name = run_date.strftime("%B")
-    month_end = calendar.monthrange(run_date.year, run_date.month)[1]
-
-    if run_date.day <= 15:
-        return f"{month_name} Batch 1", "1st - 15th"
-
-    return f"{month_name} Batch 2", f"15th - {ordinal_day(month_end)}"
 
 @shared_task
 def alloc_commissions_task():
@@ -174,10 +155,8 @@ def alloc_commissions_task():
     # ===============================
     # EMAIL REPORT
     # ===============================
-    report_now = datetime.now()
-    allocation_time = report_now.strftime("%d-%b-%Y")
-    period_name, period_range = get_allocation_period(report_now)
-    copyright_year = report_now.year
+    allocation_time = datetime.now().strftime("%d-%b-%Y")
+    copyright_year = datetime.now().year
     total_allocated = sum(a["allocated_amt"] for a in allocations)
     total_levied = sum(a["levied"] for a in allocations)
     allocation_count = len(allocations)
@@ -229,13 +208,12 @@ def alloc_commissions_task():
     <td align="right" style="vertical-align:middle;color:#dbeafe;font-size:13px;">
     <div style="font-weight:700;color:#ffffff;font-size:14px;">Commission Allocation</div>
     <div>{allocation_time}</div>
-    <div style="margin-top:8px;display:inline-block;background:#ffffff;color:#002f6c;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:800;">{period_name}: {period_range}</div>
     </td>
     </tr>
     </table>
     <div style="padding-top:26px;">
     <h1 style="margin:0;color:#ffffff;font-size:26px;line-height:1.25;font-weight:800;">Daily Commission Allocation Report</h1>
-    <p style="margin:8px 0 0;color:#cfe2ff;font-size:14px;line-height:1.6;">Allocation run completed for <strong style="color:#ffffff;">{period_name}</strong>, covering {period_range}.</p>
+    <p style="margin:8px 0 0;color:#cfe2ff;font-size:14px;line-height:1.6;">Allocation run completed and the summary is ready for review.</p>
     </div>
     </td>
     </tr>
@@ -243,26 +221,19 @@ def alloc_commissions_task():
     <td style="padding:24px 28px 10px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
     <tr>
-    <td style="width:25%;padding:0 8px 12px 0;">
-    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:16px;">
-    <div style="font-size:12px;color:#9a3412;text-transform:uppercase;font-weight:700;">Period</div>
-    <div style="margin-top:8px;font-size:18px;line-height:1.25;font-weight:800;color:#7c2d12;">{period_name}</div>
-    <div style="margin-top:4px;font-size:12px;color:#9a3412;">{period_range}</div>
-    </div>
-    </td>
-    <td style="width:25%;padding:0 8px 12px 0;">
+    <td style="width:33.33%;padding:0 8px 12px 0;">
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;">
     <div style="font-size:12px;color:#64748b;text-transform:uppercase;font-weight:700;">Allocations</div>
     <div style="margin-top:8px;font-size:24px;font-weight:800;color:#0f172a;">{allocation_count}</div>
     </div>
     </td>
-    <td style="width:25%;padding:0 4px 12px;">
+    <td style="width:33.33%;padding:0 4px 12px;">
     <div style="background:#ecfdf5;border:1px solid #bbf7d0;border-radius:12px;padding:16px;">
     <div style="font-size:12px;color:#047857;text-transform:uppercase;font-weight:700;">Allocated Amount</div>
     <div style="margin-top:8px;font-size:24px;font-weight:800;color:#065f46;">{total_allocated:,.2f}</div>
     </div>
     </td>
-    <td style="width:25%;padding:0 0 12px 8px;">
+    <td style="width:33.33%;padding:0 0 12px 8px;">
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;">
     <div style="font-size:12px;color:#64748b;text-transform:uppercase;font-weight:700;">Levies</div>
     <div style="margin-top:8px;font-size:24px;font-weight:800;color:#334155;">{total_levied:,.2f}</div>
@@ -294,7 +265,7 @@ def alloc_commissions_task():
     <tr>
     <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:18px 28px;text-align:center;color:#64748b;font-size:12px;line-height:1.6;">
     <div style="font-weight:700;color:#334155;">Copyright &copy; {copyright_year} Madison Group. All rights reserved.</div>
-    <div>Automated by E. Samuel</div>
+    <div>Automated by Eg. Samuel</div>
     </td>
     </tr>
     </table>
