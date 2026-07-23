@@ -14,16 +14,16 @@ logger = logging.getLogger(__name__)
 
 GX_MEMBERS_SELECT = """
 SELECT
-    CONCAT('COPL/', TRIM(cm.customersmembersfamilynumber::TEXT)) AS "familyCode",
+    CONCAT('COPR/', TRIM(cm.customersmembersfamilynumber::TEXT)) AS "familyCode",
     CONCAT(
-        'COPL/',
+        'COPR/',
         TRIM(cm.customersmembersfamilynumber::TEXT),
         '/',
         TRIM(cm.customersmembersnumber::TEXT)
     ) AS "membershipNumber",
     COALESCE(TRIM(cm.customersmembersoldnumber::TEXT), '') AS "OldmembershipNumber",
     CONCAT(
-        'COPL/',
+        'COPR/',
         TRIM(cm.customersmembersfamilynumber::TEXT),
         '/',
         TRIM(cm.customersmembersnumber::TEXT)
@@ -176,7 +176,7 @@ class GxSmartMemberSyncService:
             where_clauses.append(
                 """
                 CONCAT(
-                    'COPL/',
+                    'COPR/',
                     TRIM(cm.customersmembersfamilynumber::TEXT),
                     '/',
                     TRIM(cm.customersmembersnumber::TEXT)
@@ -310,8 +310,8 @@ LIMIT %s
 
     def sync_members_batch(
         self,
-        customers_code="597",
-        policy_version=2,
+        customers_code="6571",
+        policy_version=1,
         policy_code=None,
         limit=1000,
         target_duration_seconds=120,

@@ -10,16 +10,16 @@ from .services import GxSmartMemberSyncService
 
 MEMBERS_QUERY = """
 SELECT
-    CONCAT('COPL/', TRIM(cm.customersmembersfamilynumber::TEXT)) AS "familyCode",
+    CONCAT('COPR/', TRIM(cm.customersmembersfamilynumber::TEXT)) AS "familyCode",
     CONCAT(
-        'COPL/',
+        'COPR/',
         TRIM(cm.customersmembersfamilynumber::TEXT),
         '/',
         TRIM(cm.customersmembersnumber::TEXT)
     ) AS "membershipNumber",
     COALESCE(TRIM(cm.customersmembersoldnumber::TEXT), '') AS "OldmembershipNumber",
     CONCAT(
-        'COPL/',
+        'COPR/',
         TRIM(cm.customersmembersfamilynumber::TEXT),
         '/',
         TRIM(cm.customersmembersnumber::TEXT)

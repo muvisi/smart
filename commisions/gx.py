@@ -1693,6 +1693,7 @@ class CommissionFinancialViewPayable(APIView):
                 sub.levies,
                 sub.available_allocation,
 
+
                 ROUND(
                     sub.available_allocation *
                     (sub.intermediarycommisionrate / 100),
@@ -1720,12 +1721,15 @@ class CommissionFinancialViewPayable(APIView):
                 ) AS commission_payable,
 
                 sub.transaction_total_amount,
+                sub.transactionstotalamount,
                 sub.payment_status,
                 sub.primarybenefitname,
                 sub.customerspolicycode,
                 sub.primarybenefitcode,
                 sub.customer_name,
-                sub.debit_code
+                sub.debit_code,
+                sub.sap_receipt_number,
+                sub.sap_payment_receiptdate
 
             FROM (
 
@@ -1737,6 +1741,7 @@ class CommissionFinancialViewPayable(APIView):
                     p.pushnoteagentcode AS agent_code,
                     p.customerscode AS customer_code,
                     t.transactionstotalamount AS transaction_total_amount,
+                    t.transactionstotalamount AS transactionstotalamount,
 
                     i.intermediaryname AS intermediary_name,
 
@@ -1761,10 +1766,12 @@ class CommissionFinancialViewPayable(APIView):
                     ) AS levies,
 
                     ROUND(
-                        COALESCE(sp_sum.receipted_amount, 0) -
-                        ((COALESCE(sp_sum.receipted_amount, 0) * 0.45 / 100) + 40),
+                        COALESCE(t.transactionssubtotalamount, 0),
                         2
                     ) AS available_allocation,
+
+                    sp_sum.sap_receipt_number,
+                    sp_sum.sap_payment_receiptdate,
 
                     CASE
                         WHEN t.transactionstotalamount >
@@ -1795,10 +1802,20 @@ class CommissionFinancialViewPayable(APIView):
                     
                 LEFT JOIN (
                     SELECT
-                        sap_payment_drcrno,
-                        SUM(sap_payment_amount) AS receipted_amount
-                    FROM sap_payment
-                    GROUP BY sap_payment_drcrno
+                        sp.sap_payment_drcrno,
+                        MAX(sp.sap_payment_receiptdate)
+                            AS sap_payment_receiptdate,
+                        SUM(sp.sap_payment_amount) AS receipted_amount,
+                        STRING_AGG(
+                            DISTINCT sr.sap_receipt_number::text,
+                            ','
+                            ORDER BY sr.sap_receipt_number::text
+                        ) AS sap_receipt_number
+                    FROM sap_payment sp
+                    JOIN sap_receipt sr
+                        ON sr.sap_receipt_number = sp.sap_receipt_number
+                    WHERE sr.sap_receipt_reversed IS FALSE
+                    GROUP BY sp.sap_payment_drcrno
                 ) sp_sum
                     ON p.pushnotedrcrnotenumber = sp_sum.sap_payment_drcrno
 

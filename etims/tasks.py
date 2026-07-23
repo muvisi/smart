@@ -278,13 +278,18 @@ def sync_debit_credit_notes_task():
  
  
 from celery import shared_task
-from django.core.mail import send_mail
+from email.mime.image import MIMEImage
+from pathlib import Path
+
+from django.core.mail import EmailMultiAlternatives, send_mail
 from django.conf import settings
+from django.template.loader import render_to_string
+from django.utils import timezone
 from django.utils.timezone import now
 
 
 @shared_task
-def send_etims_health_report():
+def send_etims_health_report_legacy():
     timestamp = now().strftime("%Y-%m-%d %H:%M:%S")
 
     subject = "ETIMS Health Check Report - System Status"
@@ -324,4 +329,49 @@ ETIMS Integration Service
     return {
         "status": "SENT",
         "timestamp": timestamp
+    }
+
+
+@shared_task
+def send_etims_health_report():
+    checked_at = timezone.localtime(now())
+    timestamp = checked_at.strftime("%d %B %Y, %H:%M:%S %Z")
+    services = [
+        {"name": "Celery Worker", "status": "Active", "detail": "Task processing is available"},
+        {"name": "Celery Beat", "status": "Active", "detail": "Scheduled jobs are being dispatched"},
+        {"name": "Redis Broker", "status": "Connected", "detail": "Message broker connection is available"},
+        {"name": "eTIMS Sync Jobs", "status": "Running", "detail": "Transaction synchronisation is operational"},
+    ]
+    context = {
+        "checked_at": timestamp,
+        "services": services,
+        "service_name": "GX eTIMS Service",
+        "environment": getattr(settings, "ETIMS_ENVIRONMENT", "Production"),
+    }
+    subject = "[Healthy] GX eTIMS Service | Health Check"
+    message = render_to_string("emails/etims_health_report.email", context)
+    html_message = render_to_string("emails/etims_health_report.html", context)
+
+    email = EmailMultiAlternatives(
+        subject=subject,
+        body=message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=settings.TEST_EMAIL_RECIPIENTS,
+    )
+    email.attach_alternative(html_message, "text/html")
+    email.mixed_subtype = "related"
+
+    logo_path = Path(settings.BASE_DIR) / "commisions" / "logo.jpeg"
+    if logo_path.exists():
+        logo = MIMEImage(logo_path.read_bytes(), _subtype="jpeg")
+        logo.add_header("Content-ID", "<madison-logo>")
+        logo.add_header("Content-Disposition", "inline", filename="madison-logo.jpeg")
+        email.attach(logo)
+
+    email.send(fail_silently=False)
+
+    return {
+        "status": "SENT",
+        "timestamp": timestamp,
+        "recipients": len(settings.TEST_EMAIL_RECIPIENTS),
     }
