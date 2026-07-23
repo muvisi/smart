@@ -21,6 +21,7 @@ __pycache__/
 
 # Django
 db.sqlite3
+exports/
 
 # Windows
 Thumbs.db
