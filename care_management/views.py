@@ -31,7 +31,7 @@ END
 
 LOU_STATUS_REPORT_QUERY = f"""
 SELECT
-    l.lou_pre_auth_status_name AS "admissionStatus",
+    UPPER(l.lou_pre_auth_status_name) AS "admissionStatus",
     c.customernamebytype AS "customerName",
     l.lou_customer_member_name AS "memberName",
     l.lou_customer_member_numberchar AS "memberNumber",
