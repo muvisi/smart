@@ -145,18 +145,18 @@ DATABASES = {
     'PORT': config('BETTERLIFE_DB_PORT', default='5432'),
 },
 
-    # 'external_mssql': {
-    #     'ENGINE': 'mssql',
-    #     'NAME': config('MSSQL_DB_NAME'),
-    #     'USER': config('MSSQL_DB_USER'),
-    #     'PASSWORD': config('MSSQL_DB_PASSWORD'),
-    #     'HOST': config('MSSQL_DB_HOST'),
-    #     'PORT': config('MSSQL_DB_PORT', default='1433'),
-    #     'OPTIONS': {
-    #         'driver': 'ODBC Driver 18 for SQL Server',
-    #         'extra_params': 'TrustServerCertificate=yes',
-    #     },
-    # },
+    'external_mssql': {
+        'ENGINE': 'mssql',
+        'NAME': config('MSSQL_DB_NAME'),
+        'USER': config('MSSQL_DB_USER'),
+        'PASSWORD': config('MSSQL_DB_PASSWORD'),
+        'HOST': config('MSSQL_DB_HOST'),
+        'PORT': config('MSSQL_DB_PORT', default='1433'),
+        'OPTIONS': {
+            'driver': 'ODBC Driver 18 for SQL Server',
+            'extra_params': 'TrustServerCertificate=yes',
+        },
+    },
     
 }
 

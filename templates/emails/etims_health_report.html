@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GX eTIMS Service Health Check</title>
+</head>
+<body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#17233c;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+    GX eTIMS Service is healthy. All monitored components are operating normally.
+  </div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#eef3f8;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:680px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 36px rgba(24,49,83,.10);">
+          <tr><td style="height:6px;background:#11a88c;font-size:0;line-height:0;">&nbsp;</td></tr>
+          <tr>
+            <td style="padding:28px 36px 24px;border-bottom:1px solid #e7edf4;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td valign="middle"><img src="cid:madison-logo" width="58" alt="Madison Group" style="display:block;width:58px;height:auto;border:0;"></td>
+                  <td align="right" valign="middle" style="font-size:12px;line-height:18px;color:#64748b;">
+                    <strong style="display:block;color:#1e3a8a;font-size:14px;letter-spacing:.2px;">MADISON GROUP</strong>
+                    Enterprise Integration Services
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:36px 36px 12px;">
+              <div style="font-size:12px;line-height:18px;font-weight:bold;letter-spacing:1.5px;color:#0f8f79;text-transform:uppercase;">Operational Health Report</div>
+              <h1 style="margin:8px 0 12px;font-size:30px;line-height:38px;color:#172554;font-weight:700;">GX eTIMS Service</h1>
+              <p style="margin:0;font-size:15px;line-height:24px;color:#526174;">Automated monitoring confirms that all core service components are available and operating normally.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 36px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#ecfdf7;border:1px solid #b7eadc;border-radius:12px;">
+                <tr>
+                  <td width="58" align="center" valign="middle" style="padding:20px 0 20px 20px;">
+                    <div style="width:38px;height:38px;line-height:38px;border-radius:50%;background:#0f9f83;color:#ffffff;font-size:22px;font-weight:bold;text-align:center;">&#10003;</div>
+                  </td>
+                  <td style="padding:20px 18px;">
+                    <div style="font-size:12px;line-height:18px;color:#177462;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">Overall status</div>
+                    <div style="font-size:22px;line-height:28px;color:#075e4f;font-weight:bold;">Healthy &amp; Operational</div>
+                  </td>
+                  <td align="right" valign="middle" style="padding:20px 22px;font-size:12px;line-height:18px;color:#397b70;">{{ environment }}<br><strong>No action required</strong></td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 36px 10px;">
+              <h2 style="margin:0 0 14px;font-size:16px;line-height:24px;color:#172554;">Service status</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #e3eaf2;border-radius:10px;overflow:hidden;">
+                {% for service in services %}
+                <tr>
+                  <td width="42%" style="padding:15px 16px;{% if not forloop.last %}border-bottom:1px solid #e8edf3;{% endif %}font-size:14px;line-height:20px;color:#1e293b;font-weight:bold;">{{ service.name }}</td>
+                  <td style="padding:15px 8px;{% if not forloop.last %}border-bottom:1px solid #e8edf3;{% endif %}font-size:12px;line-height:20px;color:#64748b;">{{ service.detail }}</td>
+                  <td align="right" style="padding:15px 16px;{% if not forloop.last %}border-bottom:1px solid #e8edf3;{% endif %}">
+                    <span style="display:inline-block;padding:4px 9px;border-radius:20px;background:#e5f8f3;color:#087763;font-size:11px;line-height:16px;font-weight:bold;text-transform:uppercase;letter-spacing:.4px;">{{ service.status }}</span>
+                  </td>
+                </tr>
+                {% endfor %}
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 36px 32px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f8fb;border-radius:9px;">
+                <tr>
+                  <td style="padding:14px 16px;font-size:12px;line-height:19px;color:#64748b;"><strong style="color:#334155;">Health check completed</strong><br>{{ checked_at }}</td>
+                  <td align="right" style="padding:14px 16px;font-size:12px;line-height:19px;color:#64748b;">Service owner<br><strong style="color:#334155;">GX Integration Team</strong></td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:22px 36px;background:#172554;color:#cbd5e1;font-size:11px;line-height:18px;text-align:center;">
+              This automated notification was generated by the GX eTIMS monitoring service.<br>
+              &copy; {% now "Y" %} Madison Group. All rights reserved.
+            </td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0;font-size:11px;line-height:17px;color:#8492a6;text-align:center;">Please do not reply to this system-generated message.</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

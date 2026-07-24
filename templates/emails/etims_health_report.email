@@ -1,0 +1,13 @@
+GX eTIMS SERVICE — HEALTH CHECK
+
+Overall status: HEALTHY
+Environment: {{ environment }}
+Checked: {{ checked_at }}
+
+SERVICE STATUS
+{% for service in services %}- {{ service.name }}: {{ service.status }} — {{ service.detail }}
+{% endfor %}
+
+All monitored GX eTIMS components are operating normally. No action is required.
+
+This is an automated operational notification from Madison Group.
