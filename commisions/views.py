@@ -271,6 +271,7 @@ def get_allocation_period(run_date):
 #         "allocations": len(allocations),
 #         "date": str(today)
 #     }
+
 @transaction.atomic(using='external_mssql')
 def alloc_commissions(request):
     """

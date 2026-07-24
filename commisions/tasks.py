@@ -76,6 +76,7 @@ def alloc_commissions_task():
            sum(PREMIUM_RECEIPT.receipt_amount) as receipt_amount
     from PREMIUM_RECEIPT
     where PREMIUM_RECEIPT.agent_id<>'54'
+      and isnull(PREMIUM_RECEIPT.commis_paid, '0')<>'1'
       and PREMIUM_RECEIPT.receipt_amount>0
       and PREMIUM_RECEIPT.receipt_date >= DATEADD(day,-15,GETDATE())
     group by PREMIUM_RECEIPT.invoice_no, PREMIUM_RECEIPT.receipt_no
