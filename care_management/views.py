@@ -67,6 +67,58 @@ LEFT JOIN (
     ON l.lou_code = ld.lou_code
 """
 
+FOLLOW_UP_TYPE_EXPRESSION = """
+CASE
+    WHEN UPPER(BTRIM(cfi.caselou_followup_type)) = 'P' THEN 'Physical Location'
+    WHEN UPPER(BTRIM(cfi.caselou_followup_type)) = 'V' THEN 'Virtual'
+    ELSE cfi.caselou_followup_type
+END
+"""
+
+FOLLOW_UP_REPORT_QUERY = f"""
+SELECT
+    cfi.caselou_code AS "caseLouCode",
+    UPPER(l.lou_pre_auth_status_name) AS "admissionStatus",
+    c.customernamebytype AS "corporate",
+    l.lou_customer_member_name AS "memberName",
+    l.lou_customer_member_numberchar AS "memberNumber",
+    l.lou_reference_number AS "referenceNumber",
+    l.lou_provider_name AS "providerName",
+    {BENEFIT_EXPRESSION} AS "benefit",
+    TO_CHAR(l.lou_creation_date, 'YYYY-MM-DD') AS "dateAuthorised",
+    TO_CHAR(l.lou_service_date, 'YYYY-MM-DD') AS "dateAdmitted",
+    l.lou_total_amount AS "amountAuthorised",
+    TO_CHAR(l.lou_discharge_date, 'YYYY-MM-DD') AS "dischargeDate",
+    l.lou_lengh_of_stay AS "lengthOfStay",
+    ld."diagnosisName" AS "diagnosisName",
+    l.lou_notes AS "louNotes",
+    cfi.caselou_followup_current_activ AS "currentActiveManagement",
+    cfi.caselou_followup_notes AS "notes",
+    cfi.caselou_followup_exclusion_non AS "exclusionOrNonPayables",
+    cfi.caselou_followup_interim_bill_ AS "interimBill",
+    TO_CHAR(cfi.caselou_followup_date, 'YYYY-MM-DD') AS "followUpDate",
+    {FOLLOW_UP_TYPE_EXPRESSION} AS "followUpType"
+FROM public.caselou_followup_incase cfi
+JOIN public.lou l
+    ON cfi.caselou_code = l.lou_case_code
+JOIN public.customers c
+    ON l.lou_customer_code = c.customerscode
+JOIN public.lou_benefit_amount lba
+    ON l.lou_code = lba.lou_benefit_amount_lou_code
+   AND lba.lou_benefit_amount_total_amoun > 0
+LEFT JOIN (
+    SELECT
+        lou_code,
+        STRING_AGG(
+            DISTINCT NULLIF(BTRIM(lou_diagnosisname), ''),
+            ', '
+        ) AS "diagnosisName"
+    FROM public.loudiagnosis
+    GROUP BY lou_code
+) ld
+    ON l.lou_code = ld.lou_code
+"""
+
 EXCEL_COLUMNS = [
     ("admissionStatus", "Admission Status"),
     ("customerName", "Customer Name"),
@@ -84,6 +136,30 @@ EXCEL_COLUMNS = [
     ("discountAmount", "Discount Amount"),
     ("shashifType", "Shashif Type"),
     ("louShashifAmount", "LOU SHASHIF Amount"),
+]
+
+FOLLOW_UP_EXCEL_COLUMNS = [
+    ("caseLouCode", "Case LOU Code"),
+    ("admissionStatus", "Admission Status"),
+    ("corporate", "Corporate"),
+    ("memberName", "Member Name"),
+    ("memberNumber", "Member Number"),
+    ("referenceNumber", "Reference Number"),
+    ("providerName", "Provider Name"),
+    ("benefit", "Benefit"),
+    ("dateAuthorised", "Date Authorised"),
+    ("dateAdmitted", "Date Admitted"),
+    ("amountAuthorised", "Amount Authorised"),
+    ("dischargeDate", "Discharge Date"),
+    ("lengthOfStay", "Length Of Stay"),
+    ("diagnosisName", "Diagnosis Name"),
+    ("louNotes", "LOU Notes"),
+    ("currentActiveManagement", "Current Active Management"),
+    ("notes", "Notes"),
+    ("exclusionOrNonPayables", "Exclusion Or Non Payables"),
+    ("interimBill", "Interim Bill"),
+    ("followUpDate", "Follow Up Date"),
+    ("followUpType", "Follow Up Type"),
 ]
 
 
@@ -105,10 +181,10 @@ def clean_excel_value(value):
     )
 
 
-def build_worksheet_xml(items):
+def build_worksheet_xml(items, excel_columns=EXCEL_COLUMNS):
     rows = []
     header_cells = []
-    for col_index, column in enumerate(EXCEL_COLUMNS, start=1):
+    for col_index, column in enumerate(excel_columns, start=1):
         cell_ref = f"{excel_column_name(col_index)}1"
         header_cells.append(
             f'<c r="{cell_ref}" t="inlineStr"><is><t>{escape(column[1])}</t></is></c>'
@@ -117,7 +193,7 @@ def build_worksheet_xml(items):
 
     for row_index, item in enumerate(items, start=2):
         cells = []
-        for col_index, column in enumerate(EXCEL_COLUMNS, start=1):
+        for col_index, column in enumerate(excel_columns, start=1):
             cell_ref = f"{excel_column_name(col_index)}{row_index}"
             value = escape(clean_excel_value(item.get(column[0])))
             cells.append(
@@ -148,6 +224,19 @@ def get_export_date_label(request, date_authorised_start_date=None, date_authori
         return f"Up to {date_authorised_end_date}"
     if date_authorised:
         return date_authorised
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def get_follow_up_export_date_label(request, follow_up_start_date=None, follow_up_end_date=None):
+    follow_up_date = request.query_params.get("followUpDate") or request.query_params.get("FollowUpDate")
+    if follow_up_start_date and follow_up_end_date:
+        return f"{follow_up_start_date} to {follow_up_end_date}"
+    if follow_up_start_date:
+        return f"From {follow_up_start_date}"
+    if follow_up_end_date:
+        return f"Up to {follow_up_end_date}"
+    if follow_up_date:
+        return follow_up_date
     return datetime.now().strftime("%Y-%m-%d")
 
 
@@ -191,6 +280,50 @@ def write_lou_status_report_xlsx(items, date_label):
 </Relationships>''',
         )
         workbook.writestr("xl/worksheets/sheet1.xml", build_worksheet_xml(items))
+
+    return filename
+
+
+def write_follow_up_report_xlsx(items, date_label):
+    export_dir = ensure_care_management_export_dir()
+    filename = f"Follow Up Report - BetterLife - {clean_filename_part(date_label)} - {uuid4().hex[:8]}.xlsx"
+    file_path = export_dir / filename
+
+    with ZipFile(file_path, "w", ZIP_DEFLATED) as workbook:
+        workbook.writestr(
+            "[Content_Types].xml",
+            '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+    <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+    <Default Extension="xml" ContentType="application/xml"/>
+    <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+    <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>''',
+        )
+        workbook.writestr(
+            "_rels/.rels",
+            '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>''',
+        )
+        workbook.writestr(
+            "xl/workbook.xml",
+            '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+    <sheets>
+        <sheet name="Follow Up Report" sheetId="1" r:id="rId1"/>
+    </sheets>
+</workbook>''',
+        )
+        workbook.writestr(
+            "xl/_rels/workbook.xml.rels",
+            '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>''',
+        )
+        workbook.writestr("xl/worksheets/sheet1.xml", build_worksheet_xml(items, FOLLOW_UP_EXCEL_COLUMNS))
 
     return filename
 
@@ -380,6 +513,192 @@ class LouStatusReportAPIView(APIView):
         except Exception as exc:
             return Response(
                 {"error": f"Failed to fetch LOU status report: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {
+                "items": items,
+                "page": page,
+                "pageSize": page_size,
+                "totalItems": total_items,
+                "totalPages": ceil(total_items / page_size) if total_items else 0,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class FollowUpReportAPIView(APIView):
+    filter_fields = {
+        "caseLouCode": "cfi.caselou_code",
+        "admissionStatus": "l.lou_pre_auth_status_name",
+        "corporate": "c.customernamebytype",
+        "memberName": "l.lou_customer_member_name",
+        "memberNumber": "l.lou_customer_member_numberchar",
+        "referenceNumber": "l.lou_reference_number",
+        "providerName": "l.lou_provider_name",
+        "benefit": BENEFIT_EXPRESSION,
+        "dateAuthorised": "l.lou_creation_date",
+        "dateAdmitted": "l.lou_service_date",
+        "amountAuthorised": "l.lou_total_amount",
+        "dischargeDate": "l.lou_discharge_date",
+        "lengthOfStay": "l.lou_lengh_of_stay",
+        "diagnosisName": "ld.\"diagnosisName\"",
+        "louNotes": "l.lou_notes",
+        "currentActiveManagement": "cfi.caselou_followup_current_activ",
+        "notes": "cfi.caselou_followup_notes",
+        "exclusionOrNonPayables": "cfi.caselou_followup_exclusion_non",
+        "interimBill": "cfi.caselou_followup_interim_bill_",
+        "followUpDate": "cfi.caselou_followup_date",
+        "followUpType": FOLLOW_UP_TYPE_EXPRESSION,
+        "caselou_code": "cfi.caselou_code",
+        "AdmissionStatus": "l.lou_pre_auth_status_name",
+        "Corporate": "c.customernamebytype",
+        "MemberName": "l.lou_customer_member_name",
+        "MemberNumber": "l.lou_customer_member_numberchar",
+        "ReferenceNumber": "l.lou_reference_number",
+        "ProviderName": "l.lou_provider_name",
+        "Benefit": BENEFIT_EXPRESSION,
+        "DateAuthorised": "l.lou_creation_date",
+        "DateAdmitted": "l.lou_service_date",
+        "AmountAuthorised": "l.lou_total_amount",
+        "DischargeDate": "l.lou_discharge_date",
+        "LengthOfStay": "l.lou_lengh_of_stay",
+        "DiagnosisName": "ld.\"diagnosisName\"",
+        "LouNotes": "l.lou_notes",
+        "CurrentActiveManagement": "cfi.caselou_followup_current_activ",
+        "Notes": "cfi.caselou_followup_notes",
+        "ExclusionOrNonPayables": "cfi.caselou_followup_exclusion_non",
+        "InterimBill": "cfi.caselou_followup_interim_bill_",
+        "FollowUpDate": "cfi.caselou_followup_date",
+        "FollowUpType": FOLLOW_UP_TYPE_EXPRESSION,
+    }
+
+    date_filter_fields = {
+        "dateAuthorised",
+        "dateAdmitted",
+        "dischargeDate",
+        "followUpDate",
+        "DateAuthorised",
+        "DateAdmitted",
+        "DischargeDate",
+        "FollowUpDate",
+    }
+
+    def apply_date_range_filter(self, request, where_clauses, params, field_name, column_name):
+        start_date = request.query_params.get(f"{field_name}StartDate")
+        end_date = request.query_params.get(f"{field_name}EndDate")
+        if field_name == "followUpDate":
+            start_date = start_date or request.query_params.get("start_date")
+            end_date = end_date or request.query_params.get("end_date")
+
+        if start_date and end_date:
+            where_clauses.append(f"DATE({column_name}) BETWEEN %s AND %s")
+            params.extend([start_date, end_date])
+        elif start_date:
+            where_clauses.append(f"DATE({column_name}) >= %s")
+            params.append(start_date)
+        elif end_date:
+            where_clauses.append(f"DATE({column_name}) <= %s")
+            params.append(end_date)
+
+        return start_date, end_date
+
+    def get(self, request):
+        try:
+            page = int(request.query_params.get("page", 1))
+            page_size = int(request.query_params.get("pageSize", 10))
+        except ValueError:
+            return Response(
+                {"error": "page and pageSize must be valid numbers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if page < 1:
+            return Response(
+                {"error": "page must be greater than 0."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if page_size < 1:
+            return Response(
+                {"error": "pageSize must be greater than 0."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        page_size = min(page_size, 500)
+        offset = (page - 1) * page_size
+
+        where_clauses = []
+        params = []
+
+        for field_name, column_name in self.filter_fields.items():
+            value = request.query_params.get(field_name)
+            if value:
+                if field_name in self.date_filter_fields:
+                    where_clauses.append(f"DATE({column_name}) = %s")
+                    params.append(value)
+                else:
+                    where_clauses.append(f"{column_name}::text ILIKE %s")
+                    params.append(f"%{value}%")
+
+        self.apply_date_range_filter(request, where_clauses, params, "dateAuthorised", "l.lou_creation_date")
+        self.apply_date_range_filter(request, where_clauses, params, "dateAdmitted", "l.lou_service_date")
+        self.apply_date_range_filter(request, where_clauses, params, "dischargeDate", "l.lou_discharge_date")
+        follow_up_start_date, follow_up_end_date = self.apply_date_range_filter(request, where_clauses, params, "followUpDate", "cfi.caselou_followup_date")
+
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        count_query = f"""
+        SELECT COUNT(*) FROM (
+            {FOLLOW_UP_REPORT_QUERY}
+            {where_sql}
+        ) AS follow_up_report_count
+        """
+
+        data_query = f"""
+        {FOLLOW_UP_REPORT_QUERY}
+        {where_sql}
+        ORDER BY cfi.caselou_followup_date DESC NULLS LAST, "referenceNumber"
+        LIMIT %s OFFSET %s
+        """
+
+        export_query = f"""
+        {FOLLOW_UP_REPORT_QUERY}
+        {where_sql}
+        ORDER BY cfi.caselou_followup_date DESC NULLS LAST, "referenceNumber"
+        """
+
+        try:
+            with connections["default_betterlife"].cursor() as cursor:
+                if request.query_params.get("export", "").lower() == "true":
+                    cursor.execute(export_query, params)
+                    columns = [col[0] for col in cursor.description]
+                    items = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                    date_label = get_follow_up_export_date_label(request, follow_up_start_date, follow_up_end_date)
+                    filename = write_follow_up_report_xlsx(items, date_label)
+                    download_path = reverse("lou-status-report-download", kwargs={"filename": filename})
+                    download_url = build_download_url(request, download_path)
+
+                    return Response(
+                        {
+                            "downloadUrl": download_url,
+                            "downloadPath": download_path,
+                            "fileName": filename,
+                            "totalItems": len(items),
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+
+                cursor.execute(count_query, params)
+                total_items = cursor.fetchone()[0]
+
+                cursor.execute(data_query, params + [page_size, offset])
+                columns = [col[0] for col in cursor.description]
+                items = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        except Exception as exc:
+            return Response(
+                {"error": f"Failed to fetch Follow Up report: {exc}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
