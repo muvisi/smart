@@ -38,7 +38,8 @@ SELECT
     l.lou_reference_number AS "referenceNumber",
     l.lou_provider_name AS "providerName",
     {BENEFIT_EXPRESSION} AS "benefit",
-    TO_CHAR(l.lou_service_date, 'YYYY-MM-DD') AS "dateAuthorised",
+    TO_CHAR(l.lou_creation_date, 'YYYY-MM-DD') AS "dateAuthorised",
+    -- TO_CHAR(l.lou_service_date, 'YYYY-MM-DD') AS "dateAuthorised",
     TO_CHAR(l.lou_discharge_date, 'YYYY-MM-DD') AS "dischargeDate",
     l.lou_lengh_of_stay AS "lengthOfStay",
     ld."diagnosisName" AS "diagnosisName",
@@ -56,14 +57,6 @@ JOIN public.lou_benefit_amount lba
 LEFT JOIN (
     SELECT
         lou_code,
-        STRING_AGG(
-            DISTINCT NULLIF(BTRIM(lou_groupname), ''),
-            ', '
-        ) AS "diagnosisGroupName",
-        STRING_AGG(
-            DISTINCT NULLIF(BTRIM(lou_blockname), ''),
-            ', '
-        ) AS "diagnosisBlockName",
         STRING_AGG(
             DISTINCT NULLIF(BTRIM(lou_diagnosisname), ''),
             ', '
@@ -140,9 +133,27 @@ def build_worksheet_xml(items):
 </worksheet>'''
 
 
-def write_lou_status_report_xlsx(items):
+def clean_filename_part(value):
+    cleaned_value = clean_excel_value(value).strip()
+    return "".join("-" if char in '<>:"/\\|?*' else char for char in cleaned_value)
+
+
+def get_export_date_label(request, date_authorised_start_date=None, date_authorised_end_date=None):
+    date_authorised = request.query_params.get("dateAuthorised") or request.query_params.get("DateAuthorised")
+    if date_authorised_start_date and date_authorised_end_date:
+        return f"{date_authorised_start_date} to {date_authorised_end_date}"
+    if date_authorised_start_date:
+        return f"From {date_authorised_start_date}"
+    if date_authorised_end_date:
+        return f"Up to {date_authorised_end_date}"
+    if date_authorised:
+        return date_authorised
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def write_lou_status_report_xlsx(items, date_label):
     export_dir = ensure_care_management_export_dir()
-    filename = f"lou_status_report_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid4().hex[:8]}.xlsx"
+    filename = f"Daily Admission Report - BetterLife - {clean_filename_part(date_label)} - {uuid4().hex[:8]}.xlsx"
     file_path = export_dir / filename
 
     with ZipFile(file_path, "w", ZIP_DEFLATED) as workbook:
@@ -345,7 +356,8 @@ class LouStatusReportAPIView(APIView):
                     cursor.execute(export_query, params)
                     columns = [col[0] for col in cursor.description]
                     items = [dict(zip(columns, row)) for row in cursor.fetchall()]
-                    filename = write_lou_status_report_xlsx(items)
+                    date_label = get_export_date_label(request, date_authorised_start_date, date_authorised_end_date)
+                    filename = write_lou_status_report_xlsx(items, date_label)
                     download_path = reverse("lou-status-report-download", kwargs={"filename": filename})
                     download_url = build_download_url(request, download_path)
 
