@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-ii74!4@@vu3$j54$z%ynzh#(l^bce@ugbbv896ba^%!=j_c=il
 DEBUG = True
 
 
-ALLOWED_HOSTS = ["192.168.0.135","192.168.0.239","92.168.0.135:8080","127.0.0.1:8000","127.0.0.1","localhost:8000","localhost","https://4f4f-105-27-206-82.ngrok-free.app","https://rising-sacred-arise.ngrok-free.dev", "rising-sacred-arise.ngrok-free.dev", "4f4f-105-27-206-82.ngrok-free.app", "*"]
+ALLOWED_HOSTS = ["192.168.0.135","192.168.0.239","92.168.0.135:8080", "cronapi.madison.co.ke","127.0.0.1:8000","127.0.0.1","localhost:8000","localhost","https://4f4f-105-27-206-82.ngrok-free.app","https://rising-sacred-arise.ngrok-free.dev", "rising-sacred-arise.ngrok-free.dev", "4f4f-105-27-206-82.ngrok-free.app", "*"]
 
 AUTH_USER_MODEL = "users.Users"
 
@@ -82,6 +82,7 @@ CORS_ALLOWED_ORIGINS = [
 ALLOWED_HOSTS = [
     "192.168.0.135",
     "cronportal.madison.co.ke",
+    "cronapi.madison.co.ke",
     "localhost",
     "127.0.0.1",
     "4f4f-105-27-206-82.ngrok-free.app",
