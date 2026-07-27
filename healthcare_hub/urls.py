@@ -10,4 +10,5 @@ urlpatterns = [
     path("api/commisions/", include("commisions.urls")),
     path("api/etims/", include("etims.urls")),
     path("api/gxsmartinteg/", include("gxsmartinteg.urls")),
+    path("api/care-management/", include("care_management.urls")),
 ]
