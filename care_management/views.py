@@ -485,7 +485,7 @@ class LouStatusReportAPIView(APIView):
 
         try:
             with connections["default_betterlife"].cursor() as cursor:
-                if request.query_params.get("export", "").lower() == "true":
+                if request.query_params.get("exportdoc", "").lower() == "true":
                     cursor.execute(export_query, params)
                     columns = [col[0] for col in cursor.description]
                     items = [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -499,6 +499,19 @@ class LouStatusReportAPIView(APIView):
                             "downloadUrl": download_url,
                             "downloadPath": download_path,
                             "fileName": filename,
+                            "totalItems": len(items),
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+
+                if request.query_params.get("export", "").lower() == "true":
+                    cursor.execute(export_query, params)
+                    columns = [col[0] for col in cursor.description]
+                    items = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+                    return Response(
+                        {
+                            "items": items,
                             "totalItems": len(items),
                         },
                         status=status.HTTP_200_OK,
@@ -671,7 +684,7 @@ class FollowUpReportAPIView(APIView):
 
         try:
             with connections["default_betterlife"].cursor() as cursor:
-                if request.query_params.get("export", "").lower() == "true":
+                if request.query_params.get("exportdoc", "").lower() == "true":
                     cursor.execute(export_query, params)
                     columns = [col[0] for col in cursor.description]
                     items = [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -685,6 +698,19 @@ class FollowUpReportAPIView(APIView):
                             "downloadUrl": download_url,
                             "downloadPath": download_path,
                             "fileName": filename,
+                            "totalItems": len(items),
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+
+                if request.query_params.get("export", "").lower() == "true":
+                    cursor.execute(export_query, params)
+                    columns = [col[0] for col in cursor.description]
+                    items = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+                    return Response(
+                        {
+                            "items": items,
                             "totalItems": len(items),
                         },
                         status=status.HTTP_200_OK,
