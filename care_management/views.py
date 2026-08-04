@@ -119,6 +119,45 @@ LEFT JOIN (
     ON l.lou_code = ld.lou_code
 """
 
+DECLINE_REPORT_QUERY = """
+SELECT
+    cldl.decline_letter_code AS "referenceNumber",
+    c.customernamebytype AS "corporate",
+    dl.decline_letter_member_name AS "memberName",
+    dl.decline_letter_member_number AS "memberNumber",
+    dl.decline_letter_provider_name AS "providerName",
+    TO_CHAR(dl.decline_letter_date, 'YYYY-MM-DD') AS "declinedDate",
+    dr.decline_reasons_name AS "declineReason",
+    dl.decline_letter_notes AS "declineLetterNotes",
+    STRING_AGG(
+        DISTINCT NULLIF(BTRIM(d.diagnosisname), ''),
+        ', '
+        ORDER BY NULLIF(BTRIM(d.diagnosisname), '')
+    ) AS "diagnosisName"
+FROM public.caseloudecline_letter cldl
+JOIN public.decline_letter dl
+    ON dl.decline_letter_code = cldl.decline_letter_code
+JOIN public.customers c
+    ON c.customerscode = dl.decline_letter_custcode
+JOIN public.decline_reasons dr
+    ON dr.decline_reasons_code = dl.decline_letter_dreasons_code
+LEFT JOIN public.decline_letter_diagnosis dld
+    ON dld.decline_letter_code = cldl.decline_letter_code
+LEFT JOIN public.diagnosis d
+    ON d.diagnosiscode = dld.decline_letter_diagcode
+    AND d.diagnosisgroupcode = dld.decline_letter_groupcode
+    AND d.diagnosisblockcode = dld.decline_letter_blockcode
+GROUP BY
+    cldl.decline_letter_code,
+    c.customernamebytype,
+    dl.decline_letter_member_name,
+    dl.decline_letter_member_number,
+    dl.decline_letter_provider_name,
+    dl.decline_letter_date,
+    dr.decline_reasons_name,
+    dl.decline_letter_notes
+"""
+
 EXCEL_COLUMNS = [
     ("admissionStatus", "Admission Status"),
     ("customerName", "Customer Name"),
@@ -160,6 +199,18 @@ FOLLOW_UP_EXCEL_COLUMNS = [
     ("interimBill", "Interim Bill"),
     ("followUpDate", "Follow Up Date"),
     ("followUpType", "Follow Up Type"),
+]
+
+DECLINE_EXCEL_COLUMNS = [
+    ("referenceNumber", "Reference Number"),
+    ("corporate", "Corporate"),
+    ("memberName", "Member Name"),
+    ("memberNumber", "Member Number"),
+    ("providerName", "Provider Name"),
+    ("declinedDate", "Declined Date"),
+    ("declineReason", "Decline Reason"),
+    ("declineLetterNotes", "Decline Letter Notes"),
+    ("diagnosisName", "Diagnosis Name"),
 ]
 
 
@@ -237,6 +288,19 @@ def get_follow_up_export_date_label(request, follow_up_start_date=None, follow_u
         return f"Up to {follow_up_end_date}"
     if follow_up_date:
         return follow_up_date
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def get_decline_export_date_label(request, declined_start_date=None, declined_end_date=None):
+    declined_date = request.query_params.get("declinedDate") or request.query_params.get("DeclinedDate")
+    if declined_start_date and declined_end_date:
+        return f"{declined_start_date} to {declined_end_date}"
+    if declined_start_date:
+        return f"From {declined_start_date}"
+    if declined_end_date:
+        return f"Up to {declined_end_date}"
+    if declined_date:
+        return declined_date
     return datetime.now().strftime("%Y-%m-%d")
 
 
@@ -324,6 +388,50 @@ def write_follow_up_report_xlsx(items, date_label):
 </Relationships>''',
         )
         workbook.writestr("xl/worksheets/sheet1.xml", build_worksheet_xml(items, FOLLOW_UP_EXCEL_COLUMNS))
+
+    return filename
+
+
+def write_decline_report_xlsx(items, date_label):
+    export_dir = ensure_care_management_export_dir()
+    filename = f"Decline Report - BetterLife - {clean_filename_part(date_label)} - {uuid4().hex[:8]}.xlsx"
+    file_path = export_dir / filename
+
+    with ZipFile(file_path, "w", ZIP_DEFLATED) as workbook:
+        workbook.writestr(
+            "[Content_Types].xml",
+            '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+    <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+    <Default Extension="xml" ContentType="application/xml"/>
+    <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+    <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>''',
+        )
+        workbook.writestr(
+            "_rels/.rels",
+            '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>''',
+        )
+        workbook.writestr(
+            "xl/workbook.xml",
+            '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+    <sheets>
+        <sheet name="Decline Report" sheetId="1" r:id="rId1"/>
+    </sheets>
+</workbook>''',
+        )
+        workbook.writestr(
+            "xl/_rels/workbook.xml.rels",
+            '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>''',
+        )
+        workbook.writestr("xl/worksheets/sheet1.xml", build_worksheet_xml(items, DECLINE_EXCEL_COLUMNS))
 
     return filename
 
@@ -725,6 +833,173 @@ class FollowUpReportAPIView(APIView):
         except Exception as exc:
             return Response(
                 {"error": f"Failed to fetch Follow Up report: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {
+                "items": items,
+                "page": page,
+                "pageSize": page_size,
+                "totalItems": total_items,
+                "totalPages": ceil(total_items / page_size) if total_items else 0,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class DeclineReportAPIView(APIView):
+    filter_fields = {
+        "referenceNumber": "decline_report.\"referenceNumber\"",
+        "corporate": "decline_report.\"corporate\"",
+        "memberName": "decline_report.\"memberName\"",
+        "memberNumber": "decline_report.\"memberNumber\"",
+        "providerName": "decline_report.\"providerName\"",
+        "declinedDate": "decline_report.\"declinedDate\"",
+        "declineReason": "decline_report.\"declineReason\"",
+        "declineLetterNotes": "decline_report.\"declineLetterNotes\"",
+        "diagnosisName": "decline_report.\"diagnosisName\"",
+        "ReferenceNumber": "decline_report.\"referenceNumber\"",
+        "Corporate": "decline_report.\"corporate\"",
+        "MemberName": "decline_report.\"memberName\"",
+        "MemberNumber": "decline_report.\"memberNumber\"",
+        "ProviderName": "decline_report.\"providerName\"",
+        "DeclinedDate": "decline_report.\"declinedDate\"",
+        "DeclineReason": "decline_report.\"declineReason\"",
+        "DeclineLetterNotes": "decline_report.\"declineLetterNotes\"",
+        "DiagnosisName": "decline_report.\"diagnosisName\"",
+    }
+
+    date_filter_fields = {
+        "declinedDate",
+        "DeclinedDate",
+    }
+
+    def apply_date_range_filter(self, request, where_clauses, params, field_name, column_name):
+        start_date = request.query_params.get(f"{field_name}StartDate") or request.query_params.get("start_date")
+        end_date = request.query_params.get(f"{field_name}EndDate") or request.query_params.get("end_date")
+
+        if start_date and end_date:
+            where_clauses.append(f"{column_name} BETWEEN %s AND %s")
+            params.extend([start_date, end_date])
+        elif start_date:
+            where_clauses.append(f"{column_name} >= %s")
+            params.append(start_date)
+        elif end_date:
+            where_clauses.append(f"{column_name} <= %s")
+            params.append(end_date)
+
+        return start_date, end_date
+
+    def get(self, request):
+        try:
+            page = int(request.query_params.get("page", 1))
+            page_size = int(request.query_params.get("pageSize", 10))
+        except ValueError:
+            return Response(
+                {"error": "page and pageSize must be valid numbers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if page < 1:
+            return Response(
+                {"error": "page must be greater than 0."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if page_size < 1:
+            return Response(
+                {"error": "pageSize must be greater than 0."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        page_size = min(page_size, 500)
+        offset = (page - 1) * page_size
+
+        where_clauses = []
+        params = []
+
+        for field_name, column_name in self.filter_fields.items():
+            value = request.query_params.get(field_name)
+            if value:
+                if field_name in self.date_filter_fields:
+                    where_clauses.append(f"{column_name} = %s")
+                    params.append(value)
+                else:
+                    where_clauses.append(f"{column_name}::text ILIKE %s")
+                    params.append(f"%{value}%")
+
+        declined_start_date, declined_end_date = self.apply_date_range_filter(request, where_clauses, params, "declinedDate", "decline_report.\"declinedDate\"")
+
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        report_query = f"""
+        SELECT * FROM (
+            {DECLINE_REPORT_QUERY}
+        ) AS decline_report
+        {where_sql}
+        """
+
+        count_query = f"""
+        SELECT COUNT(*) FROM (
+            {report_query}
+        ) AS decline_report_count
+        """
+
+        data_query = f"""
+        {report_query}
+        ORDER BY decline_report."declinedDate" DESC NULLS LAST, decline_report."referenceNumber"
+        LIMIT %s OFFSET %s
+        """
+
+        export_query = f"""
+        {report_query}
+        ORDER BY decline_report."declinedDate" DESC NULLS LAST, decline_report."referenceNumber"
+        """
+
+        try:
+            with connections["default_betterlife"].cursor() as cursor:
+                if request.query_params.get("exportdoc", "").lower() == "true":
+                    cursor.execute(export_query, params)
+                    columns = [col[0] for col in cursor.description]
+                    items = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                    date_label = get_decline_export_date_label(request, declined_start_date, declined_end_date)
+                    filename = write_decline_report_xlsx(items, date_label)
+                    download_path = reverse("lou-status-report-download", kwargs={"filename": filename})
+                    download_url = build_download_url(request, download_path)
+
+                    return Response(
+                        {
+                            "downloadUrl": download_url,
+                            "downloadPath": download_path,
+                            "fileName": filename,
+                            "totalItems": len(items),
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+
+                if request.query_params.get("export", "").lower() == "true":
+                    cursor.execute(export_query, params)
+                    columns = [col[0] for col in cursor.description]
+                    items = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+                    return Response(
+                        {
+                            "items": items,
+                            "totalItems": len(items),
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+
+                cursor.execute(count_query, params)
+                total_items = cursor.fetchone()[0]
+
+                cursor.execute(data_query, params + [page_size, offset])
+                columns = [col[0] for col in cursor.description]
+                items = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        except Exception as exc:
+            return Response(
+                {"error": f"Failed to fetch Decline report: {exc}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
