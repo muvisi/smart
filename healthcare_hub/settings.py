@@ -80,7 +80,8 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 ALLOWED_HOSTS = [
-    "192.168.0.135",
+    "192.168.0.195",
+    "betterlifeapi.madison.co.ke",
     "cronportal.madison.co.ke",
     "cronapi.madison.co.ke",
     "localhost",

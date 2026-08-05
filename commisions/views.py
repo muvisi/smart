@@ -280,7 +280,8 @@ def alloc_commissions(request):
     """
 
     tz = pytz.timezone("Africa/Nairobi")
-    today = datetime.now(tz).date()
+    # today = datetime.now(tz).date()
+    today = datetime(2026, 7, 31).date()
     thisYr = today - timedelta(days=15)
 
     # ===============================
@@ -309,7 +310,7 @@ def alloc_commissions(request):
                sum(PREMIUM_RECEIPT.receipt_amount) as receipt_amount
         from PREMIUM_RECEIPT
         where PREMIUM_RECEIPT.agent_id<>'54'
-        and PREMIUM_RECEIPT.commis_paid<>'1'
+        and PREMIUM_RECEIPT.commis_paid is null
         and PREMIUM_RECEIPT.invoice_no in ('{invoNo}')
         group by PREMIUM_RECEIPT.invoice_no, PREMIUM_RECEIPT.receipt_no
         """
@@ -322,7 +323,7 @@ def alloc_commissions(request):
         from PREMIUM_RECEIPT
         where PREMIUM_RECEIPT.agent_id<>'54'
         and PREMIUM_RECEIPT.receipt_amount>0
-        and PREMIUM_RECEIPT.commis_paid<>'1'
+        and PREMIUM_RECEIPT.commis_paid is null
         and PREMIUM_RECEIPT.receipt_date between '{thisYr}' and '{today}'
         group by PREMIUM_RECEIPT.invoice_no, PREMIUM_RECEIPT.receipt_no
         order by PREMIUM_RECEIPT.receipt_no desc
@@ -637,7 +638,7 @@ def alloc_commissions(request):
             "samuel.mwangangi@madison.co.ke",
             
             "paulyne.mukhanyi@madison.co.ke",
-            "ict@madison.co.ke"
+            # "ict@madison.co.ke"
         ],
     )
 
