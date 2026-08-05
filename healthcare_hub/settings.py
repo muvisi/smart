@@ -72,6 +72,8 @@ ROOT_URLCONF = 'healthcare_hub.urls'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://192.168.0.239:8080",
+    "http://192.168.0.239:3000",
+
     "https://cronportal.madison.co.ke",
     "https://4f4f-105-27-206-82.ngrok-free.app",
     "https://rising-sacred-arise.ngrok-free.dev",
