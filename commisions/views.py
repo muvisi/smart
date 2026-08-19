@@ -281,8 +281,10 @@ def alloc_commissions(request):
 
     tz = pytz.timezone("Africa/Nairobi")
     # today = datetime.now(tz).date()
-    today = datetime(2026, 7, 31).date()
-    thisYr = today - timedelta(days=15)
+    today = datetime(2026, 8, 15).date()
+    # thisYr = today - timedelta(days=15)
+    thisYr = datetime(2026, 8, 1).date()
+
 
     # ===============================
     # DATABASE HELPER
@@ -637,7 +639,7 @@ def alloc_commissions(request):
         to=[
             "samuel.mwangangi@madison.co.ke",
             
-            "paulyne.mukhanyi@madison.co.ke",
+            # "paulyne.mukhanyi@madison.co.ke",
             # "ict@madison.co.ke"
         ],
     )
