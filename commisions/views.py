@@ -280,10 +280,10 @@ def alloc_commissions(request):
     """
 
     tz = pytz.timezone("Africa/Nairobi")
-    # today = datetime.now(tz).date()
-    today = datetime(2026, 8, 15).date()
-    # thisYr = today - timedelta(days=15)
-    thisYr = datetime(2026, 8, 1).date()
+    today = datetime.now(tz).date()
+    # today = datetime(2026, 8, 15).date()
+    thisYr = today - timedelta(days=15)
+    # thisYr = datetime(2026, 8, 1).date()
 
 
     # ===============================

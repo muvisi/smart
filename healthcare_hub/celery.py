@@ -46,15 +46,15 @@ app.conf.beat_schedule = {
     },
 
     # Commission allocations
-    # "commission-allocation-1st-and-15th-11pm": {
-    #     "task": "commisions.tasks.alloc_commissions_task",
-    #     "schedule": crontab(minute=0, hour=23, day_of_month="1,15"),
-    # },
+    "commission-allocation-1st-and-15th-11pm": {
+        "task": "commisions.tasks.alloc_commissions_task",
+        "schedule": crontab(minute=0, hour=23, day_of_month="1,15"),
+    },
 
-    # "commission-allocation-allowed-days-5pm": {
-    #     "task": "commisions.tasks.alloc_commissions_task",
-    #     "schedule": crontab(minute=0, hour=17, day_of_month="4-14,18-31"),
-    # },
+    "commission-allocation-allowed-days-5pm": {
+        "task": "commisions.tasks.alloc_commissions_task",
+        "schedule": crontab(minute=0, hour=17, day_of_month="4-14,18-31"),
+    },
 
     
 }
