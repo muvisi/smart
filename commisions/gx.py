@@ -1344,6 +1344,11 @@ class CommissionFinancialViewPayable(APIView):
                     where_clauses.append(f"{col}::text ILIKE %s")
                     params.append(f"%{val}%")
 
+            receipt_date = request.query_params.get("sap_payment_receiptdate")
+            if receipt_date:
+                where_clauses.append("sub.sap_payment_receiptdate::date = %s::date")
+                params.append(receipt_date)
+
             where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
             query = f"""
