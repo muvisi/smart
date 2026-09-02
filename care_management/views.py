@@ -37,9 +37,8 @@ SELECT
     l.lou_customer_member_numberchar AS "memberNumber",
     l.lou_reference_number AS "referenceNumber",
     l.lou_provider_name AS "providerName",
-    {BENEFIT_EXPRESSION} AS "benefit",
+    lba.benefit AS "benefit",
     TO_CHAR(l.lou_creation_date, 'YYYY-MM-DD') AS "dateAuthorised",
-    -- TO_CHAR(l.lou_service_date, 'YYYY-MM-DD') AS "dateAuthorised",
     TO_CHAR(l.lou_discharge_date, 'YYYY-MM-DD') AS "dischargeDate",
     l.lou_lengh_of_stay AS "lengthOfStay",
     ld."diagnosisName" AS "diagnosisName",
@@ -51,9 +50,27 @@ SELECT
 FROM public.lou l
 JOIN public.customers c
     ON l.lou_customer_code = c.customerscode
-JOIN public.lou_benefit_amount lba
-    ON l.lou_code = lba.lou_benefit_amount_lou_code
-   AND lba.lou_benefit_amount_total_amoun > 0
+JOIN (
+    SELECT
+        benefit_rows.lou_code,
+        STRING_AGG(
+            DISTINCT benefit_rows.benefit,
+            ', '
+            ORDER BY benefit_rows.benefit
+        ) AS benefit
+    FROM (
+        SELECT
+            lba_inner.lou_benefit_amount_lou_code AS lou_code,
+            COALESCE(
+                NULLIF(BTRIM(lba_inner.lou_benefit_amount_sbenefit_na), ''),
+                NULLIF(BTRIM(lba_inner.lou_benefit_amount_pbenefit_na), '')
+            ) AS benefit
+        FROM public.lou_benefit_amount lba_inner
+        WHERE lba_inner.lou_benefit_amount_total_amoun > 0
+    ) benefit_rows
+    GROUP BY benefit_rows.lou_code
+) lba
+    ON l.lou_code = lba.lou_code
 LEFT JOIN (
     SELECT
         lou_code,
@@ -484,7 +501,7 @@ class LouStatusReportAPIView(APIView):
         "memberNumber": "l.lou_customer_member_numberchar",
         "referenceNumber": "l.lou_reference_number",
         "providerName": "l.lou_provider_name",
-        "benefit": BENEFIT_EXPRESSION,
+        "benefit": "lba.benefit",
         "dateAuthorised": "l.lou_service_date",
         "dischargeDate": "l.lou_discharge_date",
         "lengthOfStay": "l.lou_lengh_of_stay",
@@ -500,7 +517,7 @@ class LouStatusReportAPIView(APIView):
         "MemberNumber": "l.lou_customer_member_numberchar",
         "ReferenceNumber": "l.lou_reference_number",
         "ProviderName": "l.lou_provider_name",
-        "Benefit": BENEFIT_EXPRESSION,
+        "Benefit": "lba.benefit",
         "DateAuthorised": "l.lou_service_date",
         "DischargeDate": "l.lou_discharge_date",
         "LengthOfStay": "l.lou_lengh_of_stay",
