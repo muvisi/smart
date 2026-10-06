@@ -92,45 +92,75 @@ CASE
 END
 """
 
-FOLLOW_UP_REPORT_QUERY = f"""
-SELECT
-    cfi.caselou_code AS "caseLouCode",
-    UPPER(l.lou_pre_auth_status_name) AS "admissionStatus",
-    c.customernamebytype AS "corporate",
-    l.lou_customer_member_name AS "memberName",
-    l.lou_customer_member_numberchar AS "memberNumber",
-    l.lou_reference_number AS "referenceNumber",
-    l.lou_provider_name AS "providerName",
-    lba.benefit AS "benefit",
-    TO_CHAR(l.lou_creation_date, 'YYYY-MM-DD') AS "dateAuthorised",
-    TO_CHAR(l.lou_service_date, 'YYYY-MM-DD') AS "dateAdmitted",
-    l.lou_total_amount AS "amountAuthorised",
-    TO_CHAR(l.lou_discharge_date, 'YYYY-MM-DD') AS "dischargeDate",
-    l.lou_lengh_of_stay AS "lengthOfStay",
-    ld."diagnosisName" AS "diagnosisName",
-    l.lou_notes AS "louNotes",
-    cfi.caselou_followup_current_activ AS "currentActiveManagement",
-    cfi.caselou_followup_notes AS "notes",
-    cfi.caselou_followup_exclusion_non AS "exclusionOrNonPayables",
-    cfi.caselou_followup_interim_bill_ AS "interimBill",
-    TO_CHAR(cfi.caselou_followup_date, 'YYYY-MM-DD') AS "followUpDate",
-    {FOLLOW_UP_TYPE_EXPRESSION} AS "followUpType"
-FROM (
+FOLLOW_UP_REPORT_QUERY = r"""
+WITH followups AS (
     SELECT DISTINCT
         caselou_code,
         caselou_followup_type,
         caselou_followup_date,
-        caselou_followup_current_activ,
-        caselou_followup_notes,
-        caselou_followup_exclusion_non,
-        caselou_followup_interim_bill_
+        NULLIF(BTRIM(caselou_followup_current_activ), '') AS current_active_management,
+        NULLIF(BTRIM(caselou_followup_notes), '') AS followup_notes,
+        NULLIF(BTRIM(caselou_followup_exclusion_non), '') AS exclusion_non_payables,
+        caselou_followup_interim_bill_ AS interim_bill
     FROM public.caselou_followup_incase
-) cfi
-JOIN public.lou l
-    ON cfi.caselou_code = l.lou_case_code
-JOIN public.customers c
-    ON l.lou_customer_code = c.customerscode
-JOIN (
+),
+followup_summary AS (
+    SELECT
+        caselou_code,
+        COUNT(*) AS followup_count,
+        STRING_AGG(
+            '[' || TO_CHAR(caselou_followup_date, 'YYYY-MM-DD') || '] ' ||
+            current_active_management,
+            E'\n\n'
+            ORDER BY caselou_followup_date DESC
+        ) FILTER (
+            WHERE current_active_management IS NOT NULL
+        ) AS current_active_management,
+        STRING_AGG(
+            '[' || TO_CHAR(caselou_followup_date, 'YYYY-MM-DD') || ' - ' ||
+            CASE
+                WHEN UPPER(BTRIM(caselou_followup_type)) = 'P' THEN 'Physical Location'
+                WHEN UPPER(BTRIM(caselou_followup_type)) = 'V' THEN 'Virtual'
+                ELSE COALESCE(caselou_followup_type, 'Not Specified')
+            END || ']' || E'\n' || followup_notes,
+            E'\n\n--------------------------------------------------\n\n'
+            ORDER BY caselou_followup_date DESC
+        ) FILTER (
+            WHERE followup_notes IS NOT NULL
+        ) AS followup_notes,
+        STRING_AGG(
+            '[' || TO_CHAR(caselou_followup_date, 'YYYY-MM-DD') || '] ' ||
+            exclusion_non_payables,
+            E'\n\n'
+            ORDER BY caselou_followup_date DESC
+        ) FILTER (
+            WHERE exclusion_non_payables IS NOT NULL
+        ) AS exclusion_non_payables,
+        MAX(caselou_followup_date) AS latest_followup_date,
+        (
+            ARRAY_AGG(
+                interim_bill
+                ORDER BY caselou_followup_date DESC NULLS LAST
+            ) FILTER (
+                WHERE interim_bill IS NOT NULL
+            )
+        )[1] AS latest_interim_bill,
+        (
+            ARRAY_AGG(
+                CASE
+                    WHEN UPPER(BTRIM(caselou_followup_type)) = 'P' THEN 'Physical Location'
+                    WHEN UPPER(BTRIM(caselou_followup_type)) = 'V' THEN 'Virtual'
+                    ELSE caselou_followup_type
+                END
+                ORDER BY caselou_followup_date DESC NULLS LAST
+            ) FILTER (
+                WHERE caselou_followup_type IS NOT NULL
+            )
+        )[1] AS latest_followup_type
+    FROM followups
+    GROUP BY caselou_code
+),
+benefits AS (
     SELECT
         benefit_rows.lou_code,
         STRING_AGG(
@@ -149,18 +179,48 @@ JOIN (
         WHERE lba_inner.lou_benefit_amount_total_amoun > 0
     ) benefit_rows
     GROUP BY benefit_rows.lou_code
-) lba
-    ON l.lou_code = lba.lou_code
-LEFT JOIN (
+),
+diagnoses AS (
     SELECT
         lou_code,
         STRING_AGG(
             DISTINCT NULLIF(BTRIM(lou_diagnosisname), ''),
             ', '
-        ) AS "diagnosisName"
+        ) AS diagnosis_name
     FROM public.loudiagnosis
     GROUP BY lou_code
-) ld
+)
+SELECT
+    l.lou_case_code AS "caseLouCode",
+    UPPER(l.lou_pre_auth_status_name) AS "admissionStatus",
+    c.customernamebytype AS "corporate",
+    l.lou_customer_member_name AS "memberName",
+    l.lou_customer_member_numberchar AS "memberNumber",
+    l.lou_reference_number AS "referenceNumber",
+    l.lou_provider_name AS "providerName",
+    lba.benefit AS "benefit",
+    TO_CHAR(l.lou_creation_date, 'YYYY-MM-DD') AS "dateAuthorised",
+    TO_CHAR(l.lou_service_date, 'YYYY-MM-DD') AS "dateAdmitted",
+    l.lou_total_amount AS "amountAuthorised",
+    TO_CHAR(l.lou_discharge_date, 'YYYY-MM-DD') AS "dischargeDate",
+    l.lou_lengh_of_stay AS "lengthOfStay",
+    ld.diagnosis_name AS "diagnosisName",
+    l.lou_notes AS "louNotes",
+    fs.current_active_management AS "currentActiveManagement",
+    fs.followup_notes AS "notes",
+    fs.exclusion_non_payables AS "exclusionOrNonPayables",
+    fs.latest_interim_bill AS "interimBill",
+    TO_CHAR(fs.latest_followup_date, 'YYYY-MM-DD') AS "followUpDate",
+    fs.latest_followup_type AS "followUpType",
+    fs.followup_count AS "followUpCount"
+FROM public.lou l
+JOIN public.customers c
+    ON l.lou_customer_code = c.customerscode
+JOIN followup_summary fs
+    ON l.lou_case_code = fs.caselou_code
+JOIN benefits lba
+    ON l.lou_code = lba.lou_code
+LEFT JOIN diagnoses ld
     ON l.lou_code = ld.lou_code
 """
 
@@ -244,6 +304,7 @@ FOLLOW_UP_EXCEL_COLUMNS = [
     ("interimBill", "Interim Bill"),
     ("followUpDate", "Follow Up Date"),
     ("followUpType", "Follow Up Type"),
+    ("followUpCount", "Follow Up Count"),
 ]
 
 DECLINE_EXCEL_COLUMNS = [
@@ -696,7 +757,7 @@ class LouStatusReportAPIView(APIView):
 
 class FollowUpReportAPIView(APIView):
     filter_fields = {
-        "caseLouCode": "cfi.caselou_code",
+        "caseLouCode": "fs.caselou_code",
         "admissionStatus": "l.lou_pre_auth_status_name",
         "corporate": "c.customernamebytype",
         "memberName": "l.lou_customer_member_name",
@@ -709,15 +770,16 @@ class FollowUpReportAPIView(APIView):
         "amountAuthorised": "l.lou_total_amount",
         "dischargeDate": "l.lou_discharge_date",
         "lengthOfStay": "l.lou_lengh_of_stay",
-        "diagnosisName": "ld.\"diagnosisName\"",
+        "diagnosisName": "ld.diagnosis_name",
         "louNotes": "l.lou_notes",
-        "currentActiveManagement": "cfi.caselou_followup_current_activ",
-        "notes": "cfi.caselou_followup_notes",
-        "exclusionOrNonPayables": "cfi.caselou_followup_exclusion_non",
-        "interimBill": "cfi.caselou_followup_interim_bill_",
-        "followUpDate": "cfi.caselou_followup_date",
-        "followUpType": FOLLOW_UP_TYPE_EXPRESSION,
-        "caselou_code": "cfi.caselou_code",
+        "currentActiveManagement": "fs.current_active_management",
+        "notes": "fs.followup_notes",
+        "exclusionOrNonPayables": "fs.exclusion_non_payables",
+        "interimBill": "fs.latest_interim_bill",
+        "followUpDate": "fs.latest_followup_date",
+        "followUpType": "fs.latest_followup_type",
+        "followUpCount": "fs.followup_count",
+        "caselou_code": "fs.caselou_code",
         "AdmissionStatus": "l.lou_pre_auth_status_name",
         "Corporate": "c.customernamebytype",
         "MemberName": "l.lou_customer_member_name",
@@ -730,14 +792,15 @@ class FollowUpReportAPIView(APIView):
         "AmountAuthorised": "l.lou_total_amount",
         "DischargeDate": "l.lou_discharge_date",
         "LengthOfStay": "l.lou_lengh_of_stay",
-        "DiagnosisName": "ld.\"diagnosisName\"",
+        "DiagnosisName": "ld.diagnosis_name",
         "LouNotes": "l.lou_notes",
-        "CurrentActiveManagement": "cfi.caselou_followup_current_activ",
-        "Notes": "cfi.caselou_followup_notes",
-        "ExclusionOrNonPayables": "cfi.caselou_followup_exclusion_non",
-        "InterimBill": "cfi.caselou_followup_interim_bill_",
-        "FollowUpDate": "cfi.caselou_followup_date",
-        "FollowUpType": FOLLOW_UP_TYPE_EXPRESSION,
+        "CurrentActiveManagement": "fs.current_active_management",
+        "Notes": "fs.followup_notes",
+        "ExclusionOrNonPayables": "fs.exclusion_non_payables",
+        "InterimBill": "fs.latest_interim_bill",
+        "FollowUpDate": "fs.latest_followup_date",
+        "FollowUpType": "fs.latest_followup_type",
+        "FollowUpCount": "fs.followup_count",
     }
 
     date_filter_fields = {
@@ -811,7 +874,7 @@ class FollowUpReportAPIView(APIView):
         self.apply_date_range_filter(request, where_clauses, params, "dateAuthorised", "l.lou_creation_date")
         self.apply_date_range_filter(request, where_clauses, params, "dateAdmitted", "l.lou_service_date")
         self.apply_date_range_filter(request, where_clauses, params, "dischargeDate", "l.lou_discharge_date")
-        follow_up_start_date, follow_up_end_date = self.apply_date_range_filter(request, where_clauses, params, "followUpDate", "cfi.caselou_followup_date")
+        follow_up_start_date, follow_up_end_date = self.apply_date_range_filter(request, where_clauses, params, "followUpDate", "fs.latest_followup_date")
 
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
@@ -825,14 +888,14 @@ class FollowUpReportAPIView(APIView):
         data_query = f"""
         {FOLLOW_UP_REPORT_QUERY}
         {where_sql}
-        ORDER BY cfi.caselou_followup_date DESC NULLS LAST, "referenceNumber"
+        ORDER BY fs.latest_followup_date DESC NULLS LAST, "referenceNumber"
         LIMIT %s OFFSET %s
         """
 
         export_query = f"""
         {FOLLOW_UP_REPORT_QUERY}
         {where_sql}
-        ORDER BY cfi.caselou_followup_date DESC NULLS LAST, "referenceNumber"
+        ORDER BY fs.latest_followup_date DESC NULLS LAST, "referenceNumber"
         """
 
         try:
