@@ -282,8 +282,8 @@ def alloc_commissions(request):
     tz = pytz.timezone("Africa/Nairobi")
     today = datetime.now(tz).date()
     # today = datetime(2026, 8, 15).date()
-    thisYr = today - timedelta(days=15)
-    # thisYr = datetime(2026, 8, 1).date()
+    # thisYr = today - timedelta(days=200)
+    thisYr = datetime(2024, 8, 1).date()
 
 
     # ===============================
@@ -334,6 +334,7 @@ def alloc_commissions(request):
     receipts = crud("R", sqlreceipts)
 
     allocations = []
+    allocated_receipts = set()
 
     # ===============================
     # ALLOCATION LOOP
@@ -470,13 +471,6 @@ def alloc_commissions(request):
                     )
                     """)
 
-                    crud("U", f"""
-                    update PREMIUM_RECEIPT
-                    set commis_paid='1'
-                    where invoice_no='{invoice_no}'
-                    and receipt_no='{receipt_no}'
-                    """)
-
                     # ===============================
                     # SAVE LOG TO DJANGO MODEL
                     # ===============================
@@ -497,6 +491,23 @@ def alloc_commissions(request):
                         "allocated_amt": all_amt,
                         "levied": levied
                     })
+
+                    allocated_receipts.add((invoice_no, receipt_no))
+
+    # Mark receipts only after the entire allocation phase has completed.
+    # This prevents a receipt from being skipped on a retry when only part of
+    # its commission allocation was processed.
+    if allocated_receipts:
+        with connections['external_mssql'].cursor() as cursor:
+            cursor.executemany(
+                """
+                UPDATE PREMIUM_RECEIPT
+                SET commis_paid = '1'
+                WHERE invoice_no = %s
+                  AND receipt_no = %s
+                """,
+                sorted(allocated_receipts),
+            )
 
     # ===============================
     # EMAIL REPORT

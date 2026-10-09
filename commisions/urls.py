@@ -1,5 +1,6 @@
 
-from commisions.gx import CommissionFinancialView, CommissionFinancialViewPayable, CommissionFinancialViewPaid, CommissionPayUpdateView, CommissionRecordsView, DetailedCommissionRecordsView, AgentBrokersView
+from commisions.gx import CommissionFinancialView, CommissionFinancialViewPayable,  CommissionPayUpdateView, CommissionRecordsView, DetailedCommissionRecordsView, AgentBrokersView
+from commisions.paid import CommissionFinancialViewPaid
 from .views import alloc_commissions  # make sure the import matches your file
 from django.urls import path, include
 
