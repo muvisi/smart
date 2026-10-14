@@ -1,5 +1,6 @@
 
 from commisions.gx import CommissionFinancialView, CommissionFinancialViewPayable,  CommissionPayUpdateView, CommissionRecordsView, DetailedCommissionRecordsView, AgentBrokersView
+from commisions.hais.views import CommissionAPIView, CommissionAgentsAPIView
 from commisions.paid import CommissionFinancialViewPaid
 from .views import alloc_commissions  # make sure the import matches your file
 from django.urls import path, include
@@ -15,6 +16,13 @@ urlpatterns = [
     path("getagentbrokers/", AgentBrokersView.as_view(), name="get-agent-brokers"),
     
     path("authorize/",CommissionPayUpdateView.as_view(),name="commission-pay-update"),
+    
+    
+    # HAIS COMMISIONS PAYMENT API
+   path('hais-commissions/', CommissionAPIView.as_view(), name='commissions'),
+    path("agents/", CommissionAgentsAPIView.as_view(), name="commission-agents"),
+
+
 
 
 
