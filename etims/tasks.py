@@ -41,7 +41,7 @@ def send_pending_transactions_task():
             "clientName": obj.client_name,
             "amount": float(obj.transaction_total_amount or 0),
             "uniqueRef": str(obj.source_pushnote_code),
-            "originalReference": None
+            "originalReference": obj.original_reference
         }
 
         log = EtimsTransactionLog.objects.create(

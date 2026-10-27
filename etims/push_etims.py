@@ -34,7 +34,9 @@ def send_next_transaction(request):
                   "clientName": obj.client_name,
                   "amount": float(obj.transaction_total_amount or 0),
                   "uniqueRef": str(obj.source_pushnote_code),
-                  "originalReference": None
+                  # Resolve this from the persisted note so credit notes carry
+                  # the debit note they were raised against.
+                  "originalReference": obj.original_reference
               }
 
         try:

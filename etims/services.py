@@ -53,7 +53,7 @@ def send_next_debit(request):
         "clientName": obj.client_name,
         "amount": float(obj.transaction_total_amount or 0),
         "uniqueRef": str(obj.source_pushnote_code),
-        "originalReference": obj.debit_credit_reference,
+        "originalReference": obj.original_reference,
     }
 
     try:

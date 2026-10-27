@@ -5,6 +5,9 @@ from django.db import models
 class DebitCredit(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     debit_credit_reference = models.CharField(max_length=100, unique=True, db_index=True)
+    # For a credit note, this is the debit note reference it reverses.
+    # Debit notes leave it empty, as required by the eTIMS API.
+    original_reference = models.CharField(max_length=100, null=True, blank=True, db_index=True)
     source_pushnote_code = models.BigIntegerField(db_index=True)
     transaction_code = models.BigIntegerField(null=True, blank=True, db_index=True)
     client_pin = models.CharField(max_length=50, null=True, blank=True, db_index=True)

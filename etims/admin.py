@@ -23,6 +23,7 @@ class DebitCreditAdmin(admin.ModelAdmin):
     inlines = (EtimsTransactionLogInline,)
     list_display = (
         "debit_credit_reference",
+        "original_reference",
         "source_pushnote_code",
         "transaction_code",
         "client_name",
@@ -40,6 +41,7 @@ class DebitCreditAdmin(admin.ModelAdmin):
 
     search_fields = (
         "debit_credit_reference",
+        "original_reference",
         "client_name",
         "client_pin",
         "kra_ref",
